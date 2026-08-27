@@ -1,0 +1,101 @@
+TYPE public final record zone.rong.clearskies.api.Diagnostic
+  SUPER java.lang.Record
+  RECORD zone.rong.clearskies.api.Diagnostic$Severity severity
+  RECORD java.lang.String message
+  RECORD int line
+  RECORD int column
+  CTOR public zone.rong.clearskies.api.Diagnostic(zone.rong.clearskies.api.Diagnostic$Severity,java.lang.String,int,int)
+  METHOD public final boolean zone.rong.clearskies.api.Diagnostic.equals(java.lang.Object)
+  METHOD public final int zone.rong.clearskies.api.Diagnostic.hashCode()
+  METHOD public final java.lang.String zone.rong.clearskies.api.Diagnostic.toString()
+  METHOD public int zone.rong.clearskies.api.Diagnostic.column()
+  METHOD public int zone.rong.clearskies.api.Diagnostic.line()
+  METHOD public java.lang.String zone.rong.clearskies.api.Diagnostic.format(java.lang.String)
+  METHOD public java.lang.String zone.rong.clearskies.api.Diagnostic.message()
+  METHOD public static zone.rong.clearskies.api.Diagnostic zone.rong.clearskies.api.Diagnostic.error(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.Diagnostic zone.rong.clearskies.api.Diagnostic.error(java.lang.String,int,int)
+  METHOD public static zone.rong.clearskies.api.Diagnostic zone.rong.clearskies.api.Diagnostic.info(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.Diagnostic zone.rong.clearskies.api.Diagnostic.warning(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.Diagnostic zone.rong.clearskies.api.Diagnostic.warning(java.lang.String,int,int)
+  METHOD public zone.rong.clearskies.api.Diagnostic$Severity zone.rong.clearskies.api.Diagnostic.severity()
+TYPE public static final enum zone.rong.clearskies.api.Diagnostic$Severity
+  SUPER java.lang.Enum<zone.rong.clearskies.api.Diagnostic$Severity>
+  ENUM ERROR
+  ENUM WARNING
+  ENUM INFO
+  FIELD public static final zone.rong.clearskies.api.Diagnostic$Severity zone.rong.clearskies.api.Diagnostic$Severity.ERROR
+  FIELD public static final zone.rong.clearskies.api.Diagnostic$Severity zone.rong.clearskies.api.Diagnostic$Severity.INFO
+  FIELD public static final zone.rong.clearskies.api.Diagnostic$Severity zone.rong.clearskies.api.Diagnostic$Severity.WARNING
+  METHOD public static zone.rong.clearskies.api.Diagnostic$Severity zone.rong.clearskies.api.Diagnostic$Severity.valueOf(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.Diagnostic$Severity[] zone.rong.clearskies.api.Diagnostic$Severity.values()
+TYPE public final class zone.rong.clearskies.api.ExpandClasspath
+  METHOD public java.util.List<java.nio.file.Path> zone.rong.clearskies.api.ExpandClasspath.entries()
+  METHOD public java.util.List<java.nio.file.Path> zone.rong.clearskies.api.ExpandClasspath.sourceRoots()
+  METHOD public static zone.rong.clearskies.api.ExpandClasspath zone.rong.clearskies.api.ExpandClasspath.of(java.util.Collection<java.nio.file.Path>)
+  METHOD public static zone.rong.clearskies.api.ExpandClasspath zone.rong.clearskies.api.ExpandClasspath.platformOnly()
+  METHOD public zone.rong.clearskies.api.ExpandClasspath zone.rong.clearskies.api.ExpandClasspath.withSourceRoots(java.util.Collection<java.nio.file.Path>)
+TYPE public final class zone.rong.clearskies.api.ExpandRequest
+  METHOD public java.lang.String zone.rong.clearskies.api.ExpandRequest.name()
+  METHOD public java.lang.String zone.rong.clearskies.api.ExpandRequest.source()
+  METHOD public static zone.rong.clearskies.api.ExpandRequest zone.rong.clearskies.api.ExpandRequest.of(java.lang.String)
+  METHOD public zone.rong.clearskies.api.ExpandRequest zone.rong.clearskies.api.ExpandRequest.withName(java.lang.String)
+TYPE public final class zone.rong.clearskies.api.ExpandResult
+  METHOD public boolean zone.rong.clearskies.api.ExpandResult.hasErrors()
+  METHOD public boolean zone.rong.clearskies.api.ExpandResult.isUnchanged()
+  METHOD public java.lang.String zone.rong.clearskies.api.ExpandResult.text()
+  METHOD public java.util.List<zone.rong.clearskies.api.Diagnostic> zone.rong.clearskies.api.ExpandResult.diagnostics()
+  METHOD public static zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.ExpandResult.expanded(java.lang.String,java.lang.String)
+  METHOD public static zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.ExpandResult.failed(java.lang.String,java.util.List<zone.rong.clearskies.api.Diagnostic>)
+  METHOD public static zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.ExpandResult.incomplete(java.lang.String,java.lang.String,java.util.List<zone.rong.clearskies.api.Diagnostic>)
+  METHOD public static zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.ExpandResult.unchanged(java.lang.String)
+  METHOD public zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.ExpandResult.withDiagnostics(java.util.List<zone.rong.clearskies.api.Diagnostic>)
+  METHOD public zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult.outcome()
+TYPE public static final enum zone.rong.clearskies.api.ExpandResult$Outcome
+  SUPER java.lang.Enum<zone.rong.clearskies.api.ExpandResult$Outcome>
+  ENUM UNCHANGED
+  ENUM EXPANDED
+  ENUM INCOMPLETE
+  ENUM FAILED
+  FIELD public static final zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult$Outcome.EXPANDED
+  FIELD public static final zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult$Outcome.FAILED
+  FIELD public static final zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult$Outcome.INCOMPLETE
+  FIELD public static final zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult$Outcome.UNCHANGED
+  METHOD public static zone.rong.clearskies.api.ExpandResult$Outcome zone.rong.clearskies.api.ExpandResult$Outcome.valueOf(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.ExpandResult$Outcome[] zone.rong.clearskies.api.ExpandResult$Outcome.values()
+TYPE public final enum zone.rong.clearskies.api.LanguageLevel
+  SUPER java.lang.Enum<zone.rong.clearskies.api.LanguageLevel>
+  ENUM JAVA_17
+  ENUM JAVA_18
+  ENUM JAVA_19
+  ENUM JAVA_20
+  ENUM JAVA_21
+  ENUM JAVA_22
+  ENUM JAVA_23
+  ENUM JAVA_24
+  ENUM JAVA_25
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_17
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_18
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_19
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_20
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_21
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_22
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_23
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_24
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.JAVA_25
+  FIELD public static final zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.LATEST
+  METHOD public boolean zone.rong.clearskies.api.LanguageLevel.isAtLeast(zone.rong.clearskies.api.LanguageLevel)
+  METHOD public int zone.rong.clearskies.api.LanguageLevel.release()
+  METHOD public static zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.ofRelease(int)
+  METHOD public static zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.ofRuntime()
+  METHOD public static zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.LanguageLevel.valueOf(java.lang.String)
+  METHOD public static zone.rong.clearskies.api.LanguageLevel[] zone.rong.clearskies.api.LanguageLevel.values()
+TYPE public abstract interface zone.rong.clearskies.api.StarExpander
+  METHOD public abstract zone.rong.clearskies.api.ExpandClasspath zone.rong.clearskies.api.StarExpander.classpath()
+  METHOD public abstract zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.StarExpander.expand(zone.rong.clearskies.api.ExpandRequest)
+  METHOD public abstract zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.StarExpander.languageLevel()
+  METHOD public default java.lang.String zone.rong.clearskies.api.StarExpander.expand(java.lang.String)
+TYPE public abstract interface zone.rong.clearskies.api.StarExpanderBuilder
+  METHOD public abstract zone.rong.clearskies.api.StarExpander zone.rong.clearskies.api.StarExpanderBuilder.build()
+  METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.classpath(zone.rong.clearskies.api.ExpandClasspath)
+  METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.encoding(java.nio.charset.Charset)
+  METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.languageLevel(zone.rong.clearskies.api.LanguageLevel)

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The ClearSkies Maven plugin descriptor.
+
+  Hand-written and kept in sync with the mojo annotations by MavenPluginDescriptorTest.
+  The version token is replaced with the computed project version at processResources.
+-->
+<plugin>
+  <name>ClearSkies Maven Plugin</name>
+  <description>Expands Java star imports with ClearSkies, using the same engine as the CLI and Gradle plugin.</description>
+  <groupId>zone.rong.clearskies</groupId>
+  <artifactId>clearskies-maven-plugin</artifactId>
+  <version>@version@</version>
+  <goalPrefix>clearskies</goalPrefix>
+  <isolatedRealm>false</isolatedRealm>
+  <inheritedByDefault>true</inheritedByDefault>
+  <mojos>
+    <mojo>
+      <goal>apply</goal>
+      <description>Expands star imports in the project&apos;s Java sources in place.</description>
+      <requiresDependencyResolution>test</requiresDependencyResolution>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>process-sources</phase>
+      <implementation>zone.rong.clearskies.maven.ApplyMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-session</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>The project being built.</description>
+        </parameter>
+        <parameter>
+          <name>mojoExecution</name>
+          <type>org.apache.maven.plugin.MojoExecution</type>
+          <required>false</required>
+          <editable>false</editable>
+          <description>The current mojo execution, used to honour the bound lifecycle phase.</description>
+        </parameter>
+        <parameter>
+          <name>includes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Globs limiting which files are expanded. Empty means every Java source.</description>
+        </parameter>
+        <parameter>
+          <name>excludes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Globs excluding files from expansion.</description>
+        </parameter>
+        <parameter>
+          <name>includeTestSources</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether to expand test sources as well as main sources.</description>
+        </parameter>
+        <parameter>
+          <name>languageLevel</name>
+          <type>java.lang.Integer</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Java release passed to javac as --release, e.g. 21. Defaults to maven.compiler.release, then compiler source, then the running JDK.</description>
+        </parameter>
+        <parameter>
+          <name>encoding</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Encoding of the source files.</description>
+        </parameter>
+        <parameter>
+          <name>skip</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Skips the goal entirely.</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project implementation="org.apache.maven.project.MavenProject" default-value="${project}"/>
+        <mojoExecution implementation="org.apache.maven.plugin.MojoExecution" default-value="${mojoExecution}"/>
+        <includes implementation="java.util.List"></includes>
+        <excludes implementation="java.util.List"></excludes>
+        <includeTestSources implementation="boolean" default-value="true">${clearskies.includeTestSources}</includeTestSources>
+        <languageLevel implementation="java.lang.Integer">${clearskies.languageLevel}</languageLevel>
+        <encoding implementation="java.lang.String" default-value="${project.build.sourceEncoding}">${clearskies.encoding}</encoding>
+        <skip implementation="boolean" default-value="false">${clearskies.skip}</skip>
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>check</goal>
+      <description>Fails the build when a Java source still has expandable star imports.</description>
+      <requiresDependencyResolution>test</requiresDependencyResolution>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>verify</phase>
+      <implementation>zone.rong.clearskies.maven.CheckMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-session</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>The project being built.</description>
+        </parameter>
+        <parameter>
+          <name>mojoExecution</name>
+          <type>org.apache.maven.plugin.MojoExecution</type>
+          <required>false</required>
+          <editable>false</editable>
+          <description>The current mojo execution, used to honour the bound lifecycle phase.</description>
+        </parameter>
+        <parameter>
+          <name>includes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Globs limiting which files are expanded. Empty means every Java source.</description>
+        </parameter>
+        <parameter>
+          <name>excludes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Globs excluding files from expansion.</description>
+        </parameter>
+        <parameter>
+          <name>includeTestSources</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether to expand test sources as well as main sources.</description>
+        </parameter>
+        <parameter>
+          <name>languageLevel</name>
+          <type>java.lang.Integer</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Java release passed to javac as --release, e.g. 21. Defaults to maven.compiler.release, then compiler source, then the running JDK.</description>
+        </parameter>
+        <parameter>
+          <name>encoding</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Encoding of the source files.</description>
+        </parameter>
+        <parameter>
+          <name>skip</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Skips the goal entirely.</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project implementation="org.apache.maven.project.MavenProject" default-value="${project}"/>
+        <mojoExecution implementation="org.apache.maven.plugin.MojoExecution" default-value="${mojoExecution}"/>
+        <includes implementation="java.util.List"></includes>
+        <excludes implementation="java.util.List"></excludes>
+        <includeTestSources implementation="boolean" default-value="true">${clearskies.includeTestSources}</includeTestSources>
+        <languageLevel implementation="java.lang.Integer">${clearskies.languageLevel}</languageLevel>
+        <encoding implementation="java.lang.String" default-value="${project.build.sourceEncoding}">${clearskies.encoding}</encoding>
+        <skip implementation="boolean" default-value="false">${clearskies.skip}</skip>
+      </configuration>
+    </mojo>
+  </mojos>
+</plugin>

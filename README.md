@@ -1,0 +1,126 @@
+# ClearSkies
+
+Expands Java star imports (`import pkg.*;`) into explicit single-type imports the file actually uses.
+
+`import static ….*` is left untouched (for now).
+
+## CLI
+
+1. Install the archives that are on [GitHub Releases](https://github.com/Rongmario/ClearSkies/releases).
+   - Unpack `clearskies-<version>.zip` (or `.tar`) and put `bin` on `PATH`.
+
+2. Or when cloning this repo, run `./gradlew :app:installDist` and that would put the launcher in `app/build/install/clearskies/bin`.
+
+```
+clearskies --check src/main/java          # exit 1 if anything would change (default)
+clearskies --write src/main/java          # rewrite in-place
+clearskies --diff src/main/java           # unified diff of what would change
+
+clearskies --write -cp 'lib/*' src/main/java
+```
+
+- `--classpath` / `-cp` is javac-style (system path separator). `directory/*` expands to the JAR and ZIP files in that directory.
+  - Directory arguments are walked for `*.java` and used as source roots so same-tree types resolve without a prior compile.
+- `--release N` is passed to javac. Default is the running JDK.
+- `--include` / `--exclude` take globs matched against paths relative to the working directory (for example `src/main/java/**/*.java`).
+- Piped `stdin` writes the expanded source to stdout unless a mode flag is given.
+- `--check` fails when a file would change, when attribution is incomplete, when a name is ambiguous, or when a star is retained.
+
+## Gradle Plugin
+
+Published to the [Gradle Plugin Portal](https://plugins.gradle.org/plugin/zone.rong.clearskies).
+
+```kotlin
+plugins {
+    java
+    id("zone.rong.clearskies") version "0.1.0"
+}
+
+clearSkies {
+    sourceSets("main", "test")    // default: every source set
+}
+```
+
+- `./gradlew clearSkiesApply` rewrites sources in place.
+- `./gradlew clearSkiesCheck` fails if anything would change, or if attribution is incomplete. `check` depends on it unless `enforceOnCheck = false`.
+- Each source set is attributed against its own `compileClasspath`, using that source set's `JavaCompile` `--release` and encoding unless `languageLevel` / `encoding` are set on the extension.
+  - The `check` task is cacheable and up-to-date aware. When it actually runs, it still walks every selected source.
+  - Apply always runs without cached state because it mutates the source files themselves.
+
+## Maven Plugin
+
+Published to [maven.cleanroommc.com](https://maven.cleanroommc.com).
+
+```xml
+<pluginRepositories>
+  <pluginRepository>
+    <id>cleanroom</id>
+    <url>https://maven.cleanroommc.com</url>
+  </pluginRepository>
+</pluginRepositories>
+
+<plugin>
+  <groupId>zone.rong.clearskies</groupId>
+  <artifactId>clearskies-maven-plugin</artifactId>
+  <version>0.1.0</version>
+  <executions>
+    <execution>
+      <id>clearskies-apply</id>
+      <goals>
+        <goal>apply</goal>
+      </goals>
+    </execution>
+    <execution>
+      <id>clearskies-check</id>
+      <goals>
+        <goal>check</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+Do not put `apply` and `check` in the same execution. Applying during `process-sources` would make a later check in that same execution vacuous.
+
+- `mvn clearskies:apply` rewrites in place. Bound to `process-sources` when the apply execution above is present. That phase rewrites main sources only. Direct invocation still rewrites test sources unless `clearskies.includeTestSources` is false. Bind a second apply execution to `process-test-sources` if tests should be rewritten during the build.
+- `mvn clearskies:check` fails if anything would change, or if attribution is incomplete. Bound to `verify`.
+- Attribution uses `maven.compiler.release` (then compiler `source`) unless `clearskies.languageLevel` is set. Include/exclude globs are matched against paths relative to the project basedir.
+- Skip with `-Dclearskies.skip`.
+- Without `<executions>`, the goals only run when invoked by name.
+
+## Library
+
+`zone.rong.clearskies:clearskies:0.1.0` from [maven.cleanroommc.com](https://maven.cleanroommc.com).
+
+```java
+StarExpander expander = ClearSkies.newExpander()
+        .classpath(ExpandClasspath.of(compileClasspath).withSourceRoots(sourceRoots))
+        .languageLevel(LanguageLevel.JAVA_21)
+        .build();
+
+ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Foo.java"));
+```
+
+An expander is immutable and thread-safe; one instance can serve a whole source set.
+
+`ExpandResult.outcome()` is `UNCHANGED`, `EXPANDED`, `INCOMPLETE`, or `FAILED`. On `FAILED` the original source is returned, so writing `result.text()` back to disk cannot corrupt the file.
+
+## What it rewrites
+
+Only the physical line of each non-static `import pkg.*;` (or `import pkg.Outer.*;` for member types):
+
+- Used types from that star become explicit `import pkg.Type;` lines in that slot, in ASCII order of
+  canonical name, with the original indent and line terminator.
+- A trailing comment on the star line moves onto the first explicit import.
+- Unused stars are deleted. If the file still has unresolved types, an unused-looking star is kept.
+- Two stars that both provide the same simple name (`foo.List` and `bar.List`) are left unchanged and
+  reported. ClearSkies does not guess.
+- Comments inside an import declaration, and unusually formatted imports, are left unchanged with a warning.
+- Types referenced only from Javadoc (`{@link List}`) count as uses.
+- Everything after that line, including messy formatting in the type body, is not touched.
+
+## Runtime
+
+This project targets **Java 21**.
+- It is compiled with `--release 21` and tested on it.
+- JDK is required! Not a JRE: as it uses `javax.tools.JavaCompiler`.
