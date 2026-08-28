@@ -42,6 +42,7 @@ import java.util.Set;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
@@ -57,7 +58,7 @@ import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
 /**
- * Attributes a file with javac and splices only the physical lines of non-static on-demand imports.
+ * Attributes a file with javac and splices only the physical lines of on-demand imports.
  */
 final class DefaultStarExpander implements StarExpander {
 
@@ -163,17 +164,24 @@ final class DefaultStarExpander implements StarExpander {
         Trees trees = Trees.instance(task);
         List<StarImport> stars = new ArrayList<>();
         Set<String> singleTypeSimpleNames = new HashSet<>();
+        Set<String> singleStaticSimpleNames = new HashSet<>();
         Set<StarImport> frozen = new HashSet<>();
         List<Diagnostic> diagnostics = new ArrayList<>();
         for (ImportTree importTree : unit.getImports()) {
-            if (importTree.isStatic()) {
-                continue;
-            }
             Tree qualified = importTree.getQualifiedIdentifier();
             if (!(qualified instanceof MemberSelectTree select) || !select.getIdentifier().contentEquals("*")) {
                 String fqn = qualifiedName(qualified);
                 int lastDot = fqn.lastIndexOf('.');
-                singleTypeSimpleNames.add(lastDot < 0 ? fqn : fqn.substring(lastDot + 1));
+                String simpleName = lastDot < 0 ? fqn : fqn.substring(lastDot + 1);
+                if (importTree.isStatic()) {
+                    singleStaticSimpleNames.add(simpleName);
+                    Element imported = trees.getElement(trees.getPath(unit, qualified));
+                    if (imported instanceof TypeElement) {
+                        singleTypeSimpleNames.add(simpleName);
+                    }
+                } else {
+                    singleTypeSimpleNames.add(simpleName);
+                }
                 continue;
             }
             Tree ownerTree = select.getExpression();
@@ -190,9 +198,10 @@ final class DefaultStarExpander implements StarExpander {
                     owner,
                     ownerName,
                     line,
+                    importTree.isStatic(),
                     task.getElements());
             stars.add(star);
-            if (isUnusualImport(source, (int) start, (int) end, ownerName)) {
+            if (isUnusualImport(source, (int) start, (int) end, ownerName, importTree.isStatic())) {
                 frozen.add(star);
                 diagnostics.add(Diagnostic.warning(
                         "left unusually formatted import " + ownerName + ".* unchanged",
@@ -207,13 +216,32 @@ final class DefaultStarExpander implements StarExpander {
         String packageName = qualifiedName(unit.getPackageName());
         UseScanner uses = new UseScanner(trees, DocTrees.instance(task));
         uses.scan(unit, null);
-        LinkedHashMap<StarImport, LinkedHashSet<TypeElement>> assigned = new LinkedHashMap<>();
+        uses.unresolved.addAll(ambiguousNames(source, collector));
+        LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned = new LinkedHashMap<>();
         for (StarImport star : stars) {
             assigned.put(star, new LinkedHashSet<>());
         }
 
-        assign(uses.used, trees, unit, packageName, singleTypeSimpleNames, stars, assigned, frozen, diagnostics);
-        assignUnresolved(uses.unresolved, packageName, singleTypeSimpleNames, stars, assigned, frozen, diagnostics);
+        assign(
+                uses.used,
+                trees,
+                unit,
+                packageName,
+                singleTypeSimpleNames,
+                singleStaticSimpleNames,
+                stars,
+                assigned,
+                frozen,
+                diagnostics);
+        assignUnresolved(
+                uses.unresolved,
+                packageName,
+                singleTypeSimpleNames,
+                singleStaticSimpleNames,
+                stars,
+                assigned,
+                frozen,
+                diagnostics);
 
         boolean unresolved = hasUnresolvedSymbols(collector);
         StringBuilder out = new StringBuilder(source);
@@ -226,7 +254,7 @@ final class DefaultStarExpander implements StarExpander {
                 incomplete = true;
                 continue;
             }
-            List<String> fqns = fqns(assigned.get(star));
+            List<String> fqns = importNames(star, assigned.get(star));
             String next;
             if (fqns.isEmpty()) {
                 if (unresolved) {
@@ -247,7 +275,7 @@ final class DefaultStarExpander implements StarExpander {
                 }
                 next = "";
             } else {
-                next = star.span.replacement(fqns);
+                next = star.span.replacement(fqns, star.staticImport);
             }
             String original = source.substring(star.span.start, star.span.end);
             if (next.equals(original)) {
@@ -312,6 +340,29 @@ final class DefaultStarExpander implements StarExpander {
         return false;
     }
 
+    private static Set<String> ambiguousNames(
+            String source, DiagnosticCollector<JavaFileObject> collector) {
+        Set<String> names = new LinkedHashSet<>();
+        for (javax.tools.Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
+            if (diagnostic.getKind() != javax.tools.Diagnostic.Kind.ERROR
+                    || diagnostic.getCode() == null
+                    || !diagnostic.getCode().contains("ambiguous")) {
+                continue;
+            }
+            long start = diagnostic.getStartPosition();
+            long end = diagnostic.getEndPosition();
+            if (start < 0 || end <= start || end > source.length()) {
+                continue;
+            }
+            String name = source.substring((int) start, (int) end);
+            if (Character.isJavaIdentifierStart(name.charAt(0))
+                    && name.chars().allMatch(Character::isJavaIdentifierPart)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
     static boolean isUnresolvedSymbol(String code) {
         if (code == null) {
             return false;
@@ -323,7 +374,8 @@ final class DefaultStarExpander implements StarExpander {
                 || code.contains("ambiguous");
     }
 
-    static boolean isUnusualImport(String source, int declStart, int declEnd, String ownerName) {
+    static boolean isUnusualImport(
+            String source, int declStart, int declEnd, String ownerName, boolean staticImport) {
         if (declStart < 0 || declEnd < declStart || declEnd > source.length()) {
             return true;
         }
@@ -332,7 +384,7 @@ final class DefaultStarExpander implements StarExpander {
             return true;
         }
         String compact = decl.replaceAll("\\s+", " ").strip();
-        return !compact.equals("import " + ownerName + ".*;");
+        return !compact.equals("import " + (staticImport ? "static " : "") + ownerName + ".*;");
     }
 
     private static Element ownerOf(Trees trees, JavacTask task, CompilationUnitTree unit, Tree ownerTree) {
@@ -352,17 +404,28 @@ final class DefaultStarExpander implements StarExpander {
     }
 
     private static void assign(
-            Set<TypeElement> used,
+            Set<Element> used,
             Trees trees,
             CompilationUnitTree unit,
             String packageName,
             Set<String> singleTypeSimpleNames,
+            Set<String> singleStaticSimpleNames,
             List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<TypeElement>> assigned,
+            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
             Set<StarImport> frozen,
             List<Diagnostic> diagnostics) {
-        for (TypeElement type : used) {
-            recordUse(type, trees, unit, packageName, singleTypeSimpleNames, stars, assigned, frozen, diagnostics);
+        for (Element element : used) {
+            recordUse(
+                    element,
+                    trees,
+                    unit,
+                    packageName,
+                    singleTypeSimpleNames,
+                    singleStaticSimpleNames,
+                    stars,
+                    assigned,
+                    frozen,
+                    diagnostics);
         }
     }
 
@@ -370,32 +433,43 @@ final class DefaultStarExpander implements StarExpander {
             Set<String> unresolved,
             String packageName,
             Set<String> singleTypeSimpleNames,
+            Set<String> singleStaticSimpleNames,
             List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<TypeElement>> assigned,
+            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
             Set<StarImport> frozen,
             List<Diagnostic> diagnostics) {
         for (String simple : unresolved) {
-            if (singleTypeSimpleNames.contains(simple)) {
+            if (singleTypeSimpleNames.contains(simple) || singleStaticSimpleNames.contains(simple)) {
                 continue;
             }
             List<StarImport> owners = new ArrayList<>();
-            List<TypeElement> types = new ArrayList<>();
+            List<Element> members = new ArrayList<>();
             for (StarImport star : stars) {
-                TypeElement member = star.memberNamed(simple);
+                Element member = star.memberNamed(simple);
                 if (member != null) {
                     owners.add(star);
-                    types.add(member);
+                    members.add(member);
                 }
             }
             owners = uniqueOwners(owners);
             if (owners.size() == 1) {
-                recordUse(types.get(0), null, null, packageName, singleTypeSimpleNames, stars, assigned, frozen, diagnostics);
+                recordUse(
+                        members.get(0),
+                        null,
+                        null,
+                        packageName,
+                        singleTypeSimpleNames,
+                        singleStaticSimpleNames,
+                        stars,
+                        assigned,
+                        frozen,
+                        diagnostics);
             } else if (owners.size() > 1) {
                 frozen.addAll(owners);
                 diagnostics.add(Diagnostic.error(
                         simple
                                 + " is ambiguous between "
-                                + names(owners, types.get(0))
+                                + names(owners, simple)
                                 + "; left those star imports unchanged",
                         owners.get(0).line,
                         1));
@@ -404,40 +478,44 @@ final class DefaultStarExpander implements StarExpander {
     }
 
     private static void recordUse(
-            TypeElement type,
+            Element element,
             Trees trees,
             CompilationUnitTree unit,
             String packageName,
             Set<String> singleTypeSimpleNames,
+            Set<String> singleStaticSimpleNames,
             List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<TypeElement>> assigned,
+            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
             Set<StarImport> frozen,
             List<Diagnostic> diagnostics) {
-        if (trees != null && unit != null && declaredIn(trees, unit, type)) {
+        if (trees != null && unit != null && declaredIn(trees, unit, element)) {
             return;
         }
-        if (isJavaLangTopLevel(type) || isTopLevelIn(type, packageName)) {
-            return;
-        }
-        String simple = type.getSimpleName().toString();
-        if (singleTypeSimpleNames.contains(simple)) {
+        String simple = element.getSimpleName().toString();
+        if (element instanceof TypeElement type) {
+            if (isJavaLangTopLevel(type)
+                    || isTopLevelIn(type, packageName)
+                    || singleTypeSimpleNames.contains(simple)) {
+                return;
+            }
+        } else if (!isStaticImportable(element) || singleStaticSimpleNames.contains(simple)) {
             return;
         }
         List<StarImport> owners = new ArrayList<>();
         for (StarImport star : stars) {
-            if (star.provides(type)) {
+            if (star.provides(element)) {
                 owners.add(star);
             }
         }
         owners = uniqueOwners(owners);
         if (owners.size() == 1) {
-            assigned.get(owners.get(0)).add(type);
+            assigned.get(owners.get(0)).add(element);
         } else if (owners.size() > 1) {
             frozen.addAll(owners);
             diagnostics.add(Diagnostic.error(
                     simple
                             + " is ambiguous between "
-                            + names(owners, type)
+                            + names(owners, simple)
                             + "; left those star imports unchanged",
                     owners.get(0).line,
                     1));
@@ -458,9 +536,19 @@ final class DefaultStarExpander implements StarExpander {
         return unique;
     }
 
-    private static boolean declaredIn(Trees trees, CompilationUnitTree unit, TypeElement type) {
-        TreePath path = trees.getPath(type);
+    private static boolean declaredIn(Trees trees, CompilationUnitTree unit, Element element) {
+        TreePath path = trees.getPath(element);
         return path != null && path.getCompilationUnit() == unit;
+    }
+
+    private static boolean isStaticImportable(Element element) {
+        ElementKind kind = element.getKind();
+        return element.getModifiers().contains(Modifier.STATIC)
+                && (kind == ElementKind.FIELD
+                        || kind == ElementKind.ENUM_CONSTANT
+                        || kind == ElementKind.METHOD
+                        || kind.isClass()
+                        || kind.isInterface());
     }
 
     private static boolean isJavaLangTopLevel(TypeElement type) {
@@ -479,19 +567,24 @@ final class DefaultStarExpander implements StarExpander {
         return pkg.getQualifiedName().contentEquals(packageName);
     }
 
-    private static List<String> fqns(Set<TypeElement> types) {
-        List<String> names = new ArrayList<>(types.size());
-        for (TypeElement type : types) {
-            names.add(type.getQualifiedName().toString());
+    private static List<String> importNames(StarImport star, Set<Element> elements) {
+        Set<String> unique = new HashSet<>();
+        for (Element element : elements) {
+            if (star.staticImport) {
+                unique.add(star.ownerName + "." + element.getSimpleName());
+            } else if (element instanceof TypeElement type) {
+                unique.add(type.getQualifiedName().toString());
+            }
         }
+        List<String> names = new ArrayList<>(unique);
         names.sort(String::compareTo);
         return names;
     }
 
-    private static String names(List<StarImport> owners, TypeElement type) {
+    private static String names(List<StarImport> owners, String simpleName) {
         List<String> parts = new ArrayList<>(owners.size());
         for (StarImport owner : owners) {
-            parts.add(owner.ownerName + "." + type.getSimpleName());
+            parts.add(owner.ownerName + "." + simpleName);
         }
         return String.join(" and ", parts);
     }
@@ -518,13 +611,21 @@ final class DefaultStarExpander implements StarExpander {
         final Element owner;
         final String ownerName;
         final int line;
+        final boolean staticImport;
         final Elements elements;
 
-        StarImport(LineSpan span, Element owner, String ownerName, int line, Elements elements) {
+        StarImport(
+                LineSpan span,
+                Element owner,
+                String ownerName,
+                int line,
+                boolean staticImport,
+                Elements elements) {
             this.span = span;
             this.owner = owner;
             this.ownerName = ownerName;
             this.line = line;
+            this.staticImport = staticImport;
             this.elements = elements;
         }
 
@@ -538,7 +639,21 @@ final class DefaultStarExpander implements StarExpander {
             return "name:" + ownerName;
         }
 
-        boolean provides(TypeElement type) {
+        boolean provides(Element element) {
+            if (staticImport) {
+                if (!(owner instanceof TypeElement outer) || !isStaticImportable(element)) {
+                    return false;
+                }
+                for (Element member : elements.getAllMembers(outer)) {
+                    if (member.equals(element)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (!(element instanceof TypeElement type)) {
+                return false;
+            }
             if (owner instanceof PackageElement pkg) {
                 return type.getNestingKind() == NestingKind.TOP_LEVEL && pkg.equals(type.getEnclosingElement());
             }
@@ -554,7 +669,18 @@ final class DefaultStarExpander implements StarExpander {
             return !rest.isEmpty() && rest.indexOf('.') < 0;
         }
 
-        TypeElement memberNamed(String simple) {
+        Element memberNamed(String simple) {
+            if (staticImport) {
+                if (!(owner instanceof TypeElement outer)) {
+                    return null;
+                }
+                for (Element member : elements.getAllMembers(outer)) {
+                    if (member.getSimpleName().contentEquals(simple) && isStaticImportable(member)) {
+                        return member;
+                    }
+                }
+                return null;
+            }
             TypeElement type = elements.getTypeElement(ownerName + "." + simple);
             if (type == null) {
                 return null;
@@ -571,7 +697,7 @@ final class DefaultStarExpander implements StarExpander {
 
         private final Trees trees;
         private final DocTrees docTrees;
-        private final Set<TypeElement> used = new LinkedHashSet<>();
+        private final Set<Element> used = new LinkedHashSet<>();
         private final Set<String> unresolved = new LinkedHashSet<>();
 
         UseScanner(Trees trees, DocTrees docTrees) {
@@ -625,7 +751,11 @@ final class DefaultStarExpander implements StarExpander {
                 } else {
                     used.add(type);
                 }
-            } else if (looksLikeTypeName(node.getName().toString()) && !(element instanceof TypeElement)) {
+            } else if (element != null
+                    && element.getSimpleName().contentEquals(node.getName())
+                    && isStaticImportable(element)) {
+                used.add(element);
+            } else if (element == null || looksLikeTypeName(node.getName().toString())) {
                 unresolved.add(node.getName().toString());
             }
             return super.visitIdentifier(node, unused);

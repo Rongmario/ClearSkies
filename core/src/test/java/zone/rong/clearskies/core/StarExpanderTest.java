@@ -86,30 +86,92 @@ class StarExpanderTest {
     }
 
     @Test
-    void leavesStaticStarsUntouched() {
+    void expandsStaticStarToTheMembersTheBodyUses() {
         String source =
                 """
                 package sample;
 
-                import java.util.*;
                 import static java.lang.Math.*;
 
                 class Sample {
-                    List x;
-                    double y = abs(1);
+                    double y = abs(PI);
                 }
                 """;
         String expected =
                 """
                 package sample;
 
-                import java.util.List;
-                import static java.lang.Math.*;
+                import static java.lang.Math.PI;
+                import static java.lang.Math.abs;
 
                 class Sample {
-                    List x;
-                    double y = abs(1);
+                    double y = abs(PI);
                 }
+                """;
+        ExpandResult result = expand(source);
+        assertEquals(expected, result.text(), result.diagnostics().toString());
+    }
+
+    @Test
+    void expandsStaticStarToAnEnumConstant() {
+        String source =
+                """
+                package sample;
+
+                import static java.time.DayOfWeek.*;
+
+                class Sample { Object day = MONDAY; }
+                """;
+        String expected =
+                """
+                package sample;
+
+                import static java.time.DayOfWeek.MONDAY;
+
+                class Sample { Object day = MONDAY; }
+                """;
+        assertEquals(expected, text(source));
+    }
+
+    @Test
+    void expandsStaticStarToAMemberType() {
+        String source =
+                """
+                package sample;
+
+                import static java.util.Map.*;
+
+                class Sample { Entry<String, String> entry; }
+                """;
+        String expected =
+                """
+                package sample;
+
+                import static java.util.Map.Entry;
+
+                class Sample { Entry<String, String> entry; }
+                """;
+        assertEquals(expected, text(source));
+    }
+
+    @Test
+    void doesNotReemitAStaticMemberAlreadyImportedExplicitly() {
+        String source =
+                """
+                package sample;
+
+                import static java.lang.Math.abs;
+                import static java.lang.Math.*;
+
+                class Sample { double y = abs(1); }
+                """;
+        String expected =
+                """
+                package sample;
+
+                import static java.lang.Math.abs;
+
+                class Sample { double y = abs(1); }
                 """;
         assertEquals(expected, text(source));
     }
@@ -155,6 +217,33 @@ class StarExpanderTest {
                 import bar.*;
 
                 class Sample { List x; }
+                """;
+        ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
+        assertEquals(source, result.text());
+        assertEquals(ExpandResult.Outcome.INCOMPLETE, result.outcome());
+        assertTrue(
+                result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous")),
+                result.diagnostics().toString());
+        assertFalse(result.hasErrors());
+    }
+
+    @Test
+    void keepsAmbiguousStaticStarsAndReportsThem(@TempDir Path temp) throws Exception {
+        Path root = temp.resolve("src");
+        Files.createDirectories(root.resolve("foo"));
+        Files.writeString(root.resolve("foo/A.java"), "package foo;\npublic class A { public static int VALUE; }\n");
+        Files.writeString(root.resolve("foo/B.java"), "package foo;\npublic class B { public static int VALUE; }\n");
+        StarExpander expander = ClearSkies.newExpander()
+                .classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root)))
+                .build();
+        String source =
+                """
+                package sample;
+
+                import static foo.A.*;
+                import static foo.B.*;
+
+                class Sample { int value = VALUE; }
                 """;
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
         assertEquals(source, result.text());

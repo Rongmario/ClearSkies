@@ -201,6 +201,26 @@ class StarExpanderSafetyTest {
     }
 
     @Test
+    void duplicateIdenticalStaticStarsAreNotAmbiguous() {
+        String source =
+                """
+                package sample;
+
+                import static java.lang.Math.*;
+                import static java.lang.Math.*;
+
+                class Sample { double y = abs(1); }
+                """;
+        ExpandResult result = expand(source);
+        assertFalse(result.hasErrors(), result.diagnostics().toString());
+        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
+        assertFalse(
+                result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous")),
+                result.diagnostics().toString());
+        assertEquals(1, result.text().split("import static java.lang.Math.abs;", -1).length - 1, result.text());
+    }
+
+    @Test
     void javadocLinkCountsAsAUse() {
         String source =
                 """

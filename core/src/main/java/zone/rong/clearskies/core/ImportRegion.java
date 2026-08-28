@@ -1,8 +1,8 @@
 package zone.rong.clearskies.core;
 
 /**
- * Cheap scan of the import region. Used to skip javac when a file cannot contain a non-static star
- * import, and to skip {@code module-info.java} entirely.
+ * Cheap scan of the import region. Used to skip javac when a file cannot contain a star import, and
+ * to skip {@code module-info.java} entirely.
  *
  * <p>Comments and strings in the import region are skipped, so a star in a comment is not a hit. The
  * scan stops at the first type or module declaration.
@@ -16,7 +16,7 @@ final class ImportRegion {
         if (isModuleInfo(name)) {
             return true;
         }
-        return !hasNonStaticStarImport(UnicodeEscapes.translate(source));
+        return !hasStarImport(UnicodeEscapes.translate(source));
     }
 
     static boolean isModuleInfo(String name) {
@@ -28,7 +28,7 @@ final class ImportRegion {
         return file.equals("module-info.java");
     }
 
-    static boolean hasNonStaticStarImport(String source) {
+    static boolean hasStarImport(String source) {
         Scanner scanner = new Scanner(source);
         scanner.skipWhitespaceAndComments();
         while (scanner.peek() == '@') {
@@ -50,9 +50,12 @@ final class ImportRegion {
             }
             if (scanner.matchKeyword("import")) {
                 scanner.skipWhitespaceAndComments();
-                if (scanner.matchKeyword("static") || scanner.matchKeyword("module")) {
+                if (scanner.matchKeyword("module")) {
                     scanner.skipToSemicolon();
                     continue;
+                }
+                if (scanner.matchKeyword("static")) {
+                    scanner.skipWhitespaceAndComments();
                 }
                 if (scanner.scanOnDemand()) {
                     return true;

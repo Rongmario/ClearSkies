@@ -98,7 +98,7 @@ final class LineSpan {
      * Explicit imports that occupy this line's slot. Empty {@code fqns} means delete the line.
      * Trailing comment, if any, rides on the first inserted line.
      */
-    String replacement(Iterable<String> fqns) {
+    String replacement(Iterable<String> fqns, boolean staticImport) {
         StringBuilder text = new StringBuilder();
         boolean first = true;
         int count = 0;
@@ -111,7 +111,11 @@ final class LineSpan {
         String breakAfter = newline.isEmpty() ? "\n" : newline;
         int written = 0;
         for (String fqn : fqns) {
-            text.append(indent).append("import ").append(fqn).append(';');
+            text.append(indent).append("import ");
+            if (staticImport) {
+                text.append("static ");
+            }
+            text.append(fqn).append(';');
             if (first) {
                 text.append(trailingComment);
                 first = false;

@@ -2,8 +2,6 @@
 
 Expands Java star imports (`import pkg.*;`) into explicit single-type imports the file actually uses.
 
-`import static ….*` is left untouched (for now).
-
 ## CLI
 
 1. Install the archives that are on [GitHub Releases](https://github.com/Rongmario/ClearSkies/releases).
@@ -33,7 +31,7 @@ Published to the [Gradle Plugin Portal](https://plugins.gradle.org/plugin/zone.r
 ```kotlin
 plugins {
     java
-    id("zone.rong.clearskies") version "0.1.0"
+    id("zone.rong.clearskies") version "0.2.0"
 }
 
 clearSkies {

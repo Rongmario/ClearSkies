@@ -24,8 +24,8 @@ class ImportRegionTest {
     }
 
     @Test
-    void ignoresStaticStars() {
-        assertTrue(ImportRegion.skip("import static java.lang.Math.*;\nclass Sample {}\n", "Sample.java"));
+    void findsAStaticStar() {
+        assertFalse(ImportRegion.skip("import static java.lang.Math.*;\nclass Sample {}\n", "Sample.java"));
     }
 
     @Test
