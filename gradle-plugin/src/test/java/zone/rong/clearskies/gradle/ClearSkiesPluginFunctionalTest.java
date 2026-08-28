@@ -244,4 +244,31 @@ class ClearSkiesPluginFunctionalTest {
         assertEquals(TaskOutcome.SUCCESS, clean.task(":clearSkiesCheck").getOutcome());
     }
 
+    @Test
+    void checkStoresAndReusesTheConfigurationCache() throws IOException {
+        Files.writeString(
+                projectDirectory.resolve("src/main/java/sample/Sample.java"),
+                """
+                package sample;
+
+                import java.util.List;
+
+                class Sample { List x; }
+                """);
+
+        BuildResult first = run("clearSkiesCheck", "--configuration-cache");
+        assertTrue(first.getOutput().contains("Configuration cache entry stored"), first.getOutput());
+
+        BuildResult second = run("clearSkiesCheck", "--configuration-cache");
+        assertTrue(second.getOutput().contains("Configuration cache entry reused"), second.getOutput());
+        assertEquals(TaskOutcome.UP_TO_DATE, second.task(":clearSkiesCheck").getOutcome());
+    }
+
+    @Test
+    void applyDoesNotDragInTestCompilation() {
+        BuildResult result = run("clearSkiesApply", "--dry-run");
+
+        assertFalse(result.getOutput().contains(":compileTestJava"), result.getOutput());
+    }
+
 }
