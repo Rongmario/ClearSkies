@@ -36,6 +36,8 @@ plugins {
 
 clearSkies {
     sourceSets("main", "test")    // default: every source set
+    include("com/example/**")     // default: every file, patterns are relative to the source directories
+    exclude("**/generated/**")
 }
 ```
 

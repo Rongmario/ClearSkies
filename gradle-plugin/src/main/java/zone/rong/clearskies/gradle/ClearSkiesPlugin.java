@@ -82,7 +82,9 @@ public class ClearSkiesPlugin implements Plugin<Project> {
                 continue;
             }
             SourceSetWork work = objects.newInstance(SourceSetWork.class, sourceSet.getName());
-            work.getSource().from(sourceSet.getAllJava().filter(file -> file.getName().endsWith(".java")));
+            work.getSource().from(sourceSet.getAllJava()
+                    .matching(patterns -> patterns.include(extension.getIncludes().get()).exclude(extension.getExcludes().get()))
+                    .filter(file -> file.getName().endsWith(".java")));
             work.getClasspath().from(existing(sourceSet.getCompileClasspath()));
             work.getSourceRoots().from(existing(sourceSet.getAllJava().getSourceDirectories()));
             if (main != null && !SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName())) {

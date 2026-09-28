@@ -4,6 +4,7 @@ import zone.rong.clearskies.api.LanguageLevel;
 import java.util.List;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 
 /**
  * The {@code clearSkies { }} block.
@@ -19,6 +20,12 @@ public abstract class ClearSkiesExtension {
 
     /** Names of the source sets to expand. Defaults to every source set in the project. */
     public abstract ListProperty<String> getSourceSets();
+
+    /** Ant-style patterns of the files to expand, relative to each source directory. Defaults to every file. */
+    public abstract SetProperty<String> getIncludes();
+
+    /** Ant-style patterns of the files to leave alone, relative to each source directory. */
+    public abstract SetProperty<String> getExcludes();
 
     /**
      * Java release passed to javac as {@code --release}. When unset, each source set uses its
@@ -38,6 +45,16 @@ public abstract class ClearSkiesExtension {
     /** Convenience for {@code sourceSets = listOf(...)}. */
     public void sourceSets(String... names) {
         getSourceSets().set(List.of(names));
+    }
+
+    /** Adds include patterns. */
+    public void include(String... patterns) {
+        getIncludes().addAll(patterns);
+    }
+
+    /** Adds exclude patterns. */
+    public void exclude(String... patterns) {
+        getExcludes().addAll(patterns);
     }
 
 }
