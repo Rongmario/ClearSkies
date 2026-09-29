@@ -5,13 +5,7 @@ import org.gradle.api.publish.tasks.GenerateModuleMetadata
 
 plugins {
     `java-gradle-plugin`
-    alias(libs.plugins.plugin.publish)
-    signing
-}
-
-java {
-    withSourcesJar()
-    withJavadocJar()
+    id("com.cleanroommc.conventions")
 }
 
 base {
@@ -34,8 +28,6 @@ gradlePlugin {
 
 dependencies {
     implementation(project(":core"))
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(gradleTestKit())
 }
 
@@ -63,19 +55,6 @@ publishing {
         pom {
             name.set("ClearSkies Gradle Plugin")
             description.set("Expands Java star imports with ClearSkies, using the same engine as the CLI and Maven plugin.")
-            url.set("https://github.com/Rongmario/ClearSkies")
-            developers {
-                developer {
-                    id.set("Rongmario")
-                    name.set("Rongmario")
-                    url.set("https://github.com/Rongmario")
-                }
-            }
-            scm {
-                url.set("https://github.com/Rongmario/ClearSkies")
-                connection.set("scm:git:git://github.com/Rongmario/ClearSkies.git")
-                developerConnection.set("scm:git:ssh://git@github.com/Rongmario/ClearSkies.git")
-            }
         }
         pom.withXml {
             val dependenciesNodes = asNode().get("dependencies") as NodeList
@@ -92,19 +71,7 @@ publishing {
     }
 }
 
-val signingKey = providers.gradleProperty("signingKey")
-val signingPassword = providers.gradleProperty("signingPassword")
-signing {
-    setRequired({
-        gradle.taskGraph.allTasks.any { it.name == "publishPlugins" }
-    })
-    if (signingKey.isPresent && signingPassword.isPresent) {
-        useInMemoryPgpKeys(signingKey.get(), signingPassword.get())
-    }
-}
-
 tasks.test {
-    useJUnitPlatform()
     val testVersion = providers.gradleProperty("clearskies.gradle.test.version").orElse("")
     systemProperty("clearskies.gradle.version", testVersion.get())
     inputs.property("clearskies.gradle.version", testVersion)

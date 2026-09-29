@@ -1,14 +1,19 @@
-package zone.rong.clearskies.core;
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+package zone.rong.clearskies.core;
 
 import zone.rong.clearskies.api.Diagnostic;
 import zone.rong.clearskies.api.ExpandClasspath;
 import zone.rong.clearskies.api.ExpandRequest;
 import zone.rong.clearskies.api.ExpandResult;
 import zone.rong.clearskies.api.StarExpander;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,8 +25,8 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class StarExpanderSafetyTest {
 
@@ -35,8 +40,7 @@ class StarExpanderSafetyTest {
 
     @Test
     void missingBraceAbandonsExpansionAndReturnsTheOriginal() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -44,18 +48,18 @@ class StarExpanderSafetyTest {
                 class Sample { List x;
                 """;
         ExpandResult result = expand(source);
-        assertEquals(ExpandResult.Outcome.FAILED, result.outcome());
-        assertTrue(result.hasErrors());
-        assertEquals(source, result.text());
-        assertFalse(result.diagnostics().isEmpty(), result.diagnostics().toString());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.FAILED);
+        assertThat(result.hasErrors()).isTrue();
+        assertThat(result.text()).isEqualTo(source);
+        assertThat(result.diagnostics().isEmpty()).as(result.diagnostics().toString()).isFalse();
     }
 
     @Test
     void unparseableSourceAbandonsExpansion() {
         String source = "import java.util.*;\nclass Sample { {{{ \n";
         ExpandResult result = expand(source);
-        assertEquals(ExpandResult.Outcome.FAILED, result.outcome());
-        assertEquals(source, result.text());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.FAILED);
+        assertThat(result.text()).isEqualTo(source);
     }
 
     @Test
@@ -64,11 +68,8 @@ class StarExpanderSafetyTest {
         Files.createDirectories(lib);
         compileJar(temp, lib.resolve("foo.jar"), "foo", "Bar", "public class Bar {}");
         compileJar(temp, lib.resolve("unused.zip"), "foo", "Unused", "public class Unused {}");
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(ExpandClasspath.of(List.of(lib.resolve("*"))))
-                .build();
-        String source =
-                """
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.of(List.of(lib.resolve("*")))).build();
+        String source = """
                 package sample;
 
                 import foo.*;
@@ -76,20 +77,17 @@ class StarExpanderSafetyTest {
                 class Sample { Bar x; }
                 """;
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import foo.Bar;"), result.text());
-        assertTrue(result.text().contains("class Sample { Bar x; }"), result.text());
-        assertFalse(result.text().contains("import foo.*;"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import foo.Bar;")).as(result.text()).isTrue();
+        assertThat(result.text().contains("class Sample { Bar x; }")).as(result.text()).isTrue();
+        assertThat(result.text().contains("import foo.*;")).as(result.text()).isFalse();
     }
 
     @Test
     void missingClasspathEntryFailsClosed(@TempDir Path temp) {
         Path missing = temp.resolve("no-such.jar");
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(ExpandClasspath.of(List.of(missing)))
-                .build();
-        String source =
-                """
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.of(List.of(missing))).build();
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -97,21 +95,16 @@ class StarExpanderSafetyTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
-        assertEquals(ExpandResult.Outcome.FAILED, result.outcome());
-        assertEquals(source, result.text());
-        assertTrue(
-                result.diagnostics().stream().anyMatch(d -> d.message().contains("missing classpath entry")),
-                result.diagnostics().toString());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.FAILED);
+        assertThat(result.text()).isEqualTo(source);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.message().contains("missing classpath entry"))).as(result.diagnostics().toString()).isTrue();
     }
 
     @Test
     void missingSourcePathEntryFailsClosed(@TempDir Path temp) {
         Path missing = temp.resolve("no-such-src");
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(missing)))
-                .build();
-        String source =
-                """
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(missing))).build();
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -119,17 +112,14 @@ class StarExpanderSafetyTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
-        assertEquals(ExpandResult.Outcome.FAILED, result.outcome());
-        assertEquals(source, result.text());
-        assertTrue(
-                result.diagnostics().stream().anyMatch(d -> d.message().contains("missing source-path entry")),
-                result.diagnostics().toString());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.FAILED);
+        assertThat(result.text()).isEqualTo(source);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.message().contains("missing source-path entry"))).as(result.diagnostics().toString()).isTrue();
     }
 
     @Test
     void commentInsideImportIsLeftUnchangedWithAWarning() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java./* KEEP */util.*;
@@ -137,18 +127,15 @@ class StarExpanderSafetyTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expand(source);
-        assertEquals(source, result.text());
-        assertEquals(ExpandResult.Outcome.INCOMPLETE, result.outcome());
-        assertTrue(
-                result.diagnostics().stream().anyMatch(d -> d.severity() == Diagnostic.Severity.WARNING),
-                result.diagnostics().toString());
-        assertTrue(result.text().contains("/* KEEP */"), result.text());
+        assertThat(result.text()).isEqualTo(source);
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.INCOMPLETE);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.severity() == Diagnostic.Severity.WARNING)).as(result.diagnostics().toString()).isTrue();
+        assertThat(result.text().contains("/* KEEP */")).as(result.text()).isTrue();
     }
 
     @Test
     void unusedStarWithTrailingCommentIsLeftUnchanged() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*; // keep
@@ -156,17 +143,14 @@ class StarExpanderSafetyTest {
                 class Sample { int x; }
                 """;
         ExpandResult result = expand(source);
-        assertEquals(source, result.text());
-        assertEquals(ExpandResult.Outcome.INCOMPLETE, result.outcome());
-        assertTrue(
-                result.diagnostics().stream().anyMatch(d -> d.message().contains("trailing comment")),
-                result.diagnostics().toString());
+        assertThat(result.text()).isEqualTo(source);
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.INCOMPLETE);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.message().contains("trailing comment"))).as(result.diagnostics().toString()).isTrue();
     }
 
     @Test
     void sourceNameWithASpaceExpands() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -174,15 +158,14 @@ class StarExpanderSafetyTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expand(source, "My File.java");
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import java.util.List;"), result.text());
-        assertTrue(result.text().contains("class Sample { List x; }"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import java.util.List;")).as(result.text()).isTrue();
+        assertThat(result.text().contains("class Sample { List x; }")).as(result.text()).isTrue();
     }
 
     @Test
     void duplicateIdenticalStarsAreNotAmbiguous() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -191,19 +174,16 @@ class StarExpanderSafetyTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expand(source);
-        assertFalse(result.hasErrors(), result.diagnostics().toString());
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertFalse(
-                result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous")),
-                result.diagnostics().toString());
-        assertTrue(result.text().contains("import java.util.List;"), result.text());
-        assertEquals(1, result.text().split("import java.util.List;", -1).length - 1, result.text());
+        assertThat(result.hasErrors()).as(result.diagnostics().toString()).isFalse();
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous"))).as(result.diagnostics().toString()).isFalse();
+        assertThat(result.text().contains("import java.util.List;")).as(result.text()).isTrue();
+        assertThat(result.text().split("import java.util.List;", -1).length - 1).as(result.text()).isEqualTo(1);
     }
 
     @Test
     void duplicateIdenticalStaticStarsAreNotAmbiguous() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import static java.lang.Math.*;
@@ -212,18 +192,15 @@ class StarExpanderSafetyTest {
                 class Sample { double y = abs(1); }
                 """;
         ExpandResult result = expand(source);
-        assertFalse(result.hasErrors(), result.diagnostics().toString());
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertFalse(
-                result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous")),
-                result.diagnostics().toString());
-        assertEquals(1, result.text().split("import static java.lang.Math.abs;", -1).length - 1, result.text());
+        assertThat(result.hasErrors()).as(result.diagnostics().toString()).isFalse();
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.diagnostics().stream().anyMatch(d -> d.message().contains("ambiguous"))).as(result.diagnostics().toString()).isFalse();
+        assertThat(result.text().split("import static java.lang.Math.abs;", -1).length - 1).as(result.text()).isEqualTo(1);
     }
 
     @Test
     void javadocLinkCountsAsAUse() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -232,24 +209,23 @@ class StarExpanderSafetyTest {
                 class Sample {}
                 """;
         ExpandResult result = expand(source);
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import java.util.List;"), result.text());
-        assertTrue(result.text().contains("{@link List}"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import java.util.List;")).as(result.text()).isTrue();
+        assertThat(result.text().contains("{@link List}")).as(result.text()).isTrue();
     }
 
     @Test
     void unicodeEscapedImportIsExpanded() {
         String source = "package sample;\n\n\\u0069mport java.util.*;\n\nclass Sample { List x; }\n";
         ExpandResult result = expand(source);
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import java.util.List;"), result.text());
-        assertTrue(result.text().contains("class Sample { List x; }"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import java.util.List;")).as(result.text()).isTrue();
+        assertThat(result.text().contains("class Sample { List x; }")).as(result.text()).isTrue();
     }
 
     @Test
     void unresolvedNeighbourStillExpandsAResolvedStar() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import com.missing.*;
@@ -258,9 +234,9 @@ class StarExpanderSafetyTest {
                 class Sample { List x; Missing y; }
                 """;
         ExpandResult result = expand(source);
-        assertEquals(ExpandResult.Outcome.INCOMPLETE, result.outcome());
-        assertTrue(result.text().contains("import java.util.List;"), result.text());
-        assertTrue(result.text().contains("import com.missing.*;"), result.text());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.INCOMPLETE);
+        assertThat(result.text().contains("import java.util.List;")).as(result.text()).isTrue();
+        assertThat(result.text().contains("import com.missing.*;")).as(result.text()).isTrue();
     }
 
     @Test
@@ -269,11 +245,10 @@ class StarExpanderSafetyTest {
         Files.writeString(file, "old", StandardCharsets.UTF_8);
         String expanded = "package sample;\n\nimport java.util.List;\n\nclass Sample { List x; }\n";
         AtomicFiles.writeString(file, expanded, StandardCharsets.UTF_8);
-        assertEquals(expanded, Files.readString(file, StandardCharsets.UTF_8));
+        assertThat(Files.readString(file, StandardCharsets.UTF_8)).isEqualTo(expanded);
     }
 
-    private static void compileJar(Path temp, Path jar, String packageName, String className, String body)
-            throws Exception {
+    private static void compileJar(Path temp, Path jar, String packageName, String className, String body) throws Exception {
         Path src = temp.resolve("src-" + className);
         Path pkg = src.resolve(packageName);
         Files.createDirectories(pkg);
@@ -284,10 +259,8 @@ class StarExpanderSafetyTest {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8)) {
             Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjects(javaFile.toFile());
-            Boolean ok = compiler.getTask(
-                            null, fileManager, null, List.of("-d", classes.toString()), null, units)
-                    .call();
-            assertTrue(ok, "failed to compile " + javaFile);
+            Boolean ok = compiler.getTask(null, fileManager, null, List.of("-d", classes.toString()), null, units).call();
+            assertThat(ok).as("failed to compile " + javaFile).isTrue();
         }
         Files.createDirectories(jar.getParent());
         Path classFile = classes.resolve(packageName).resolve(className + ".class");

@@ -2,12 +2,7 @@ import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
     `java-library`
-}
-
-apply(from = rootProject.file("gradle/cleanroom-publishing.gradle.kts"))
-
-java {
-    withSourcesJar()
+    id("com.cleanroommc.conventions")
 }
 
 base {
@@ -24,8 +19,11 @@ dependencies {
     testCompileOnly(libs.maven.plugin.annotations)
     testImplementation(libs.maven.plugin.api)
     testImplementation(libs.maven.core)
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+publishing.publications.withType<MavenPublication>().configureEach {
+    artifactId = "clearskies-maven-plugin"
+    pom.name = "ClearSkies Maven Plugin"
 }
 
 val projectVersion = version.toString()
@@ -38,7 +36,6 @@ tasks.processResources {
 }
 
 tasks.test {
-    useJUnitPlatform()
     val mavenVersion = providers.gradleProperty("clearskies.maven.test.version").orElse("3.9.16")
     val pluginJar = tasks.named<Jar>("jar").flatMap { it.archiveFile }
     val coreJar = project(":core").tasks.named<Jar>("jar").flatMap { it.archiveFile }

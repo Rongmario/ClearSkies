@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
 /**
@@ -18,7 +23,7 @@ final class UnicodeEscapes {
         int length = source.length();
         StringBuilder out = new StringBuilder(length);
         out.append(source, 0, first);
-        for (int i = first; i < length; ) {
+        for (int i = first; i < length;) {
             char c = source.charAt(i);
             if (c == '\\' && i + 1 < length && source.charAt(i + 1) == 'u') {
                 int j = i + 2;

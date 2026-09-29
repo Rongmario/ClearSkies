@@ -1,12 +1,17 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PathGlobsTest {
 
@@ -15,8 +20,8 @@ class PathGlobsTest {
         Path file = temp.resolve("src/main/java/sample/Sample.java");
         java.nio.file.Files.createDirectories(file.getParent());
         java.nio.file.Files.writeString(file, "class Sample {}\n");
-        assertTrue(PathGlobs.allowed(file, temp, List.of("src/main/java/**/*.java"), List.of()));
-        assertFalse(PathGlobs.allowed(file, temp, List.of("src/test/java/**/*.java"), List.of()));
+        assertThat(PathGlobs.allowed(file, temp, List.of("src/main/java/**/*.java"), List.of())).isTrue();
+        assertThat(PathGlobs.allowed(file, temp, List.of("src/test/java/**/*.java"), List.of())).isFalse();
     }
 
     @Test
@@ -24,8 +29,7 @@ class PathGlobsTest {
         Path file = temp.resolve("src/main/java/sample/Sample.java");
         java.nio.file.Files.createDirectories(file.getParent());
         java.nio.file.Files.writeString(file, "class Sample {}\n");
-        assertFalse(PathGlobs.allowed(
-                file, temp, List.of("src/main/java/**/*.java"), List.of("**/Sample.java")));
+        assertThat(PathGlobs.allowed(file, temp, List.of("src/main/java/**/*.java"), List.of("**/Sample.java"))).isFalse();
     }
 
 }

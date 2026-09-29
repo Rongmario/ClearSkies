@@ -1,61 +1,13 @@
 import org.gradle.api.GradleException
-import org.gradle.external.javadoc.StandardJavadocDocletOptions
 
 plugins {
     base
     `jvm-toolchains`
-    alias(libs.plugins.cleanroom.versioning)
+    id("com.cleanroommc.conventions.base")
 }
 
 allprojects {
     group = "zone.rong.clearskies"
-}
-
-subprojects {
-    version = rootProject.version
-    plugins.withType<JavaPlugin>().configureEach {
-        tasks.withType<JavaCompile>().configureEach {
-            if (!name.contains("Test", ignoreCase = true)) {
-                options.release.set(21)
-            }
-        }
-        tasks.withType<Javadoc>().configureEach {
-            options.encoding = "UTF-8"
-            (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
-        }
-    }
-}
-
-val clearskiesCli = configurations.create("clearskiesCli") {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-}
-
-dependencies {
-    clearskiesCli(project(":app"))
-}
-
-val starExcludes = listOf(
-    "--exclude", "**/build/**",
-    "--exclude", "**/src/test/resources/**",
-)
-
-tasks.register<JavaExec>("clearSkies") {
-    group = "verification"
-    description = "Expands star imports in this repository's Java sources with ClearSkies."
-    classpath = clearskiesCli
-    mainClass.set("zone.rong.clearskies.cli.Main")
-    workingDir = layout.projectDirectory.asFile
-    args(listOf("--write", ".") + starExcludes)
-}
-
-tasks.register<JavaExec>("clearSkiesCheck") {
-    group = "verification"
-    description = "Fails if this repository's Java sources still contain expandable star imports."
-    classpath = clearskiesCli
-    mainClass.set("zone.rong.clearskies.cli.Main")
-    workingDir = layout.projectDirectory.asFile
-    args(listOf("--check", ".") + starExcludes)
 }
 
 tasks.register("verifyArtifacts") {
@@ -111,5 +63,5 @@ tasks.register("verifyArtifacts") {
 }
 
 tasks.named("check") {
-    dependsOn("clearSkiesCheck", "verifyArtifacts")
+    dependsOn("verifyArtifacts")
 }

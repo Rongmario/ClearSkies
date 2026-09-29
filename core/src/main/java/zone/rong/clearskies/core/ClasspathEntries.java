@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
 import java.io.IOException;
@@ -80,9 +85,9 @@ final class ClasspathEntries {
     private static List<Path> archivesIn(Path directory) {
         try (Stream<Path> stream = Files.list(directory)) {
             return stream.filter(Files::isRegularFile)
-                    .filter(ClasspathEntries::isArchive)
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .toList();
+                .filter(ClasspathEntries::isArchive)
+                .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                .toList();
         } catch (IOException e) {
             throw new UncheckedIOException("cannot read classpath directory " + directory, e);
         }

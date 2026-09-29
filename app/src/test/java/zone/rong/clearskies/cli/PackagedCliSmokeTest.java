@@ -1,7 +1,12 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,8 +14,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Runs the installed CLI launcher, not {@link CliRunner} in-process.
@@ -22,10 +27,10 @@ class PackagedCliSmokeTest {
 
     private static Path launcher() {
         String path = System.getProperty("clearskies.launcher");
-        assertTrue(path != null && !path.isBlank(), "clearskies.launcher system property must point at bin/clearskies");
+        assertThat(path != null && !path.isBlank()).as("clearskies.launcher system property must point at bin/clearskies").isTrue();
         Path file = Path.of(path);
-        assertTrue(Files.isRegularFile(file), () -> "missing launcher: " + file);
-        assertTrue(Files.isExecutable(file), () -> "launcher is not executable: " + file);
+        assertThat(Files.isRegularFile(file)).as(() -> "missing launcher: " + file).isTrue();
+        assertThat(Files.isExecutable(file)).as(() -> "launcher is not executable: " + file).isTrue();
         return file;
     }
 
@@ -34,33 +39,30 @@ class PackagedCliSmokeTest {
         Run first = run(List.of("--help"));
         Run second = run(List.of("--help"));
 
-        assertEquals(0, first.exitCode, first.err);
-        assertEquals(0, second.exitCode, second.err);
-        assertEquals(first.out, second.out);
-        assertTrue(first.out.contains("--write"), first.out);
-        assertTrue(first.out.contains("--classpath"), first.out);
+        assertThat(first.exitCode).as(first.err).isEqualTo(0);
+        assertThat(second.exitCode).as(second.err).isEqualTo(0);
+        assertThat(second.out).isEqualTo(first.out);
+        assertThat(first.out.contains("--write")).as(first.out).isTrue();
+        assertThat(first.out.contains("--classpath")).as(first.out).isTrue();
     }
 
     @Test
     void writeThenCheckIsAFixedPointOnASmallFile(@TempDir Path temp) throws Exception {
         Path source = temp.resolve("Sample.java");
-        Files.writeString(
-                source,
-                "package sample;\n\nimport java.util.*;\n\nclass Sample { List x; }\n",
-                StandardCharsets.UTF_8);
+        Files.writeString(source, "package sample;\n\nimport java.util.*;\n\nclass Sample { List x; }\n", StandardCharsets.UTF_8);
 
         Run first = run(List.of("--write", source.toString()));
-        assertEquals(0, first.exitCode, first.err);
+        assertThat(first.exitCode).as(first.err).isEqualTo(0);
         String expanded = Files.readString(source, StandardCharsets.UTF_8);
-        assertTrue(expanded.contains("import java.util.List;"), expanded);
-        assertTrue(expanded.contains("class Sample { List x; }"), expanded);
+        assertThat(expanded.contains("import java.util.List;")).as(expanded).isTrue();
+        assertThat(expanded.contains("class Sample { List x; }")).as(expanded).isTrue();
 
         Run second = run(List.of("--write", source.toString()));
-        assertEquals(0, second.exitCode, second.err);
-        assertEquals(expanded, Files.readString(source, StandardCharsets.UTF_8));
+        assertThat(second.exitCode).as(second.err).isEqualTo(0);
+        assertThat(Files.readString(source, StandardCharsets.UTF_8)).isEqualTo(expanded);
 
         Run check = run(List.of("--check", source.toString()));
-        assertEquals(0, check.exitCode, check.err);
+        assertThat(check.exitCode).as(check.err).isEqualTo(0);
     }
 
     @Test
@@ -70,8 +72,8 @@ class PackagedCliSmokeTest {
         Files.writeString(source, original, StandardCharsets.UTF_8);
 
         Run write = run(List.of("--write", source.toString()));
-        assertEquals(2, write.exitCode, write.err);
-        assertEquals(original, Files.readString(source, StandardCharsets.UTF_8));
+        assertThat(write.exitCode).as(write.err).isEqualTo(2);
+        assertThat(Files.readString(source, StandardCharsets.UTF_8)).isEqualTo(original);
     }
 
     private static Run run(List<String> arguments) throws Exception {
@@ -91,10 +93,7 @@ class PackagedCliSmokeTest {
                 process.waitFor();
                 throw new IllegalStateException("launcher timed out");
             }
-            return new Run(
-                    process.exitValue(),
-                    Files.readString(outFile, StandardCharsets.UTF_8),
-                    Files.readString(errFile, StandardCharsets.UTF_8));
+            return new Run(process.exitValue(), Files.readString(outFile, StandardCharsets.UTF_8), Files.readString(errFile, StandardCharsets.UTF_8));
         } finally {
             Files.deleteIfExists(outFile);
             Files.deleteIfExists(errFile);

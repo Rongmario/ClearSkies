@@ -1,53 +1,56 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ImportRegionTest {
 
     @Test
     void skipsModuleInfoByName() {
-        assertTrue(ImportRegion.skip("module m {}", "module-info.java"));
-        assertTrue(ImportRegion.skip("module m {}", "src/module-info.java"));
+        assertThat(ImportRegion.skip("module m {}", "module-info.java")).isTrue();
+        assertThat(ImportRegion.skip("module m {}", "src/module-info.java")).isTrue();
     }
 
     @Test
     void noStarsIsASkip() {
-        assertTrue(ImportRegion.skip("package sample;\nimport java.util.List;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("package sample;\nimport java.util.List;\nclass Sample {}\n", "Sample.java")).isTrue();
     }
 
     @Test
     void findsANonStaticStar() {
-        assertFalse(ImportRegion.skip("import java.util.*;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("import java.util.*;\nclass Sample {}\n", "Sample.java")).isFalse();
     }
 
     @Test
     void findsAStaticStar() {
-        assertFalse(ImportRegion.skip("import static java.lang.Math.*;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("import static java.lang.Math.*;\nclass Sample {}\n", "Sample.java")).isFalse();
     }
 
     @Test
     void ignoresStarsInsideComments() {
-        assertTrue(ImportRegion.skip("/* import java.util.*; */\nimport java.util.List;\nclass Sample {}\n", "Sample.java"));
-        assertTrue(ImportRegion.skip("// import java.util.*;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("/* import java.util.*; */\nimport java.util.List;\nclass Sample {}\n", "Sample.java")).isTrue();
+        assertThat(ImportRegion.skip("// import java.util.*;\nclass Sample {}\n", "Sample.java")).isTrue();
     }
 
     @Test
     void findsAStarAfterPackageAndAnnotation() {
-        assertFalse(ImportRegion.skip(
-                "@Deprecated\npackage sample;\n\nimport java.util.*;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("@Deprecated\npackage sample;\n\nimport java.util.*;\nclass Sample {}\n", "Sample.java")).isFalse();
     }
 
     @Test
     void ignoresModuleImports() {
-        assertTrue(ImportRegion.skip("import module java.base;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("import module java.base;\nclass Sample {}\n", "Sample.java")).isTrue();
     }
 
     @Test
     void unicodeEscapedImportIsAHit() {
-        assertFalse(ImportRegion.skip("\\u0069mport java.util.*;\nclass Sample {}\n", "Sample.java"));
+        assertThat(ImportRegion.skip("\\u0069mport java.util.*;\nclass Sample {}\n", "Sample.java")).isFalse();
     }
 
 }

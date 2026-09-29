@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
 import java.util.ArrayDeque;
@@ -128,14 +133,14 @@ public final class UnifiedDiff {
                 }
             }
             out.append("@@ -")
-                    .append(Math.max(hunkLeftStart, 1))
-                    .append(',')
-                    .append(leftCount)
-                    .append(" +")
-                    .append(Math.max(hunkRightStart, 1))
-                    .append(',')
-                    .append(rightCount)
-                    .append(" @@\n");
+                .append(Math.max(hunkLeftStart, 1))
+                .append(',')
+                .append(leftCount)
+                .append(" +")
+                .append(Math.max(hunkRightStart, 1))
+                .append(',')
+                .append(rightCount)
+                .append(" @@\n");
             for (int k = start; k < end; k++) {
                 out.append(body.get(k)).append('\n');
             }

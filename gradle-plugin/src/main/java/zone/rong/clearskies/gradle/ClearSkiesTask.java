@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.gradle;
 
 import zone.rong.clearskies.api.Diagnostic;
@@ -7,15 +12,7 @@ import zone.rong.clearskies.api.ExpandResult;
 import zone.rong.clearskies.api.StarExpander;
 import zone.rong.clearskies.core.AtomicFiles;
 import zone.rong.clearskies.core.ClearSkies;
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
@@ -26,6 +23,16 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Expands or checks star imports in a set of Java sources, one source set at a time.
@@ -94,39 +101,32 @@ public abstract class ClearSkiesTask extends DefaultTask {
                             getLogger().lifecycle("expanded {}", file.getPath());
                         }
                     }
-                    case UNCHANGED -> { }
+                    default -> {
+                    }
                 }
             }
         }
 
         if (!failures.isEmpty()) {
-            throw new GradleException(
-                    "ClearSkies could not expand " + failures.size() + " file(s):\n" + String.join("\n", failures));
+            throw new GradleException("ClearSkies could not expand " + failures.size() + " file(s):\n" + String.join("\n", failures));
         }
         if (!wouldChange.isEmpty()) {
             throw new GradleException(
-                    "ClearSkies found " + wouldChange.size()
-                            + " file(s) with expandable star imports or incomplete attribution. Run clearSkiesApply.\n"
-                            + String.join("\n", wouldChange));
+                "ClearSkies found " + wouldChange.size() + " file(s) with expandable star imports or incomplete attribution. Run clearSkiesApply.\n" + String.join("\n", wouldChange)
+            );
         }
         getLogger().info("ClearSkies expanded {} file(s)", expanded);
         writeMarker(expanded);
     }
 
     private StarExpander expander(SourceSetWork target, Charset charset) {
-        List<Path> classpath = target.getClasspath().getFiles().stream()
-                .map(File::toPath)
-                .filter(Files::exists)
-                .toList();
-        List<Path> sourceRoots = target.getSourceRoots().getFiles().stream()
-                .map(File::toPath)
-                .filter(Files::exists)
-                .toList();
+        List<Path> classpath = target.getClasspath().getFiles().stream().map(File::toPath).filter(Files::exists).toList();
+        List<Path> sourceRoots = target.getSourceRoots().getFiles().stream().map(File::toPath).filter(Files::exists).toList();
         return ClearSkies.newExpander()
-                .classpath(ExpandClasspath.of(classpath).withSourceRoots(sourceRoots))
-                .languageLevel(target.getLanguageLevel().get())
-                .encoding(charset)
-                .build();
+            .classpath(ExpandClasspath.of(classpath).withSourceRoots(sourceRoots))
+            .languageLevel(target.getLanguageLevel().get())
+            .encoding(charset)
+            .build();
     }
 
     private void writeMarker(int expanded) {

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
 import zone.rong.clearskies.api.Diagnostic;
@@ -6,6 +11,7 @@ import zone.rong.clearskies.api.ExpandRequest;
 import zone.rong.clearskies.api.ExpandResult;
 import zone.rong.clearskies.api.LanguageLevel;
 import zone.rong.clearskies.api.StarExpander;
+
 import com.sun.source.doctree.DocCommentTree;
 import com.sun.source.doctree.DocTree;
 import com.sun.source.doctree.LinkTree;
@@ -28,6 +34,7 @@ import com.sun.source.util.JavacTask;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -95,10 +102,9 @@ final class DefaultStarExpander implements StarExpander {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             return ExpandResult.failed(
-                    source,
-                    List.of(Diagnostic.error(
-                            "JDK compiler is required (javax.tools.JavaCompiler is unavailable). "
-                                    + "Run ClearSkies on a JDK, not a JRE.")));
+                source,
+                List.of(Diagnostic.error("JDK compiler is required (javax.tools.JavaCompiler is unavailable). " + "Run ClearSkies on a JDK, not a JRE."))
+            );
         }
         List<String> resolvedErrors = ensurePaths();
         if (!resolvedErrors.isEmpty()) {
@@ -113,8 +119,7 @@ final class DefaultStarExpander implements StarExpander {
             fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, resolvedEntries);
             fileManager.setLocationFromPaths(StandardLocation.SOURCE_PATH, resolvedRoots);
             JavaFileObject file = new SourceFileObject(request);
-            JavacTask task = (JavacTask) compiler.getTask(
-                    null, fileManager, collector, compilerOptions(), null, List.of(file));
+            JavacTask task = (JavacTask) compiler.getTask(null, fileManager, collector, compilerOptions(), null, List.of(file));
             Iterable<? extends CompilationUnitTree> units = task.parse();
             List<Diagnostic> fatal = fatalDiagnostics(collector);
             if (!fatal.isEmpty()) {
@@ -131,11 +136,9 @@ final class DefaultStarExpander implements StarExpander {
             }
             return expandUnit(source, request.name(), unit, task, collector);
         } catch (IOException e) {
-            return ExpandResult.failed(
-                    source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
+            return ExpandResult.failed(source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
         } catch (RuntimeException e) {
-            return ExpandResult.failed(
-                    source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
+            return ExpandResult.failed(source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
         }
     }
 
@@ -155,12 +158,7 @@ final class DefaultStarExpander implements StarExpander {
         }
     }
 
-    private ExpandResult expandUnit(
-            String source,
-            String name,
-            CompilationUnitTree unit,
-            JavacTask task,
-            DiagnosticCollector<JavaFileObject> collector) {
+    private ExpandResult expandUnit(String source, String name, CompilationUnitTree unit, JavacTask task, DiagnosticCollector<JavaFileObject> collector) {
         Trees trees = Trees.instance(task);
         List<StarImport> stars = new ArrayList<>();
         Set<String> singleTypeSimpleNames = new HashSet<>();
@@ -193,20 +191,11 @@ final class DefaultStarExpander implements StarExpander {
             }
             int line = unit.getLineMap() == null ? 0 : (int) unit.getLineMap().getLineNumber(start);
             String ownerName = qualifiedName(ownerTree);
-            StarImport star = new StarImport(
-                    LineSpan.of(source, (int) start, (int) end),
-                    owner,
-                    ownerName,
-                    line,
-                    importTree.isStatic(),
-                    task.getElements());
+            StarImport star = new StarImport(LineSpan.of(source, (int) start, (int) end), owner, ownerName, line, importTree.isStatic(), task.getElements());
             stars.add(star);
             if (isUnusualImport(source, (int) start, (int) end, ownerName, importTree.isStatic())) {
                 frozen.add(star);
-                diagnostics.add(Diagnostic.warning(
-                        "left unusually formatted import " + ownerName + ".* unchanged",
-                        line,
-                        1));
+                diagnostics.add(Diagnostic.warning("left unusually formatted import " + ownerName + ".* unchanged", line, 1));
             }
         }
         if (stars.isEmpty()) {
@@ -222,26 +211,8 @@ final class DefaultStarExpander implements StarExpander {
             assigned.put(star, new LinkedHashSet<>());
         }
 
-        assign(
-                uses.used,
-                trees,
-                unit,
-                packageName,
-                singleTypeSimpleNames,
-                singleStaticSimpleNames,
-                stars,
-                assigned,
-                frozen,
-                diagnostics);
-        assignUnresolved(
-                uses.unresolved,
-                packageName,
-                singleTypeSimpleNames,
-                singleStaticSimpleNames,
-                stars,
-                assigned,
-                frozen,
-                diagnostics);
+        assign(uses.used, trees, unit, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+        assignUnresolved(uses.unresolved, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
 
         boolean unresolved = hasUnresolvedSymbols(collector);
         StringBuilder out = new StringBuilder(source);
@@ -258,18 +229,16 @@ final class DefaultStarExpander implements StarExpander {
             String next;
             if (fqns.isEmpty()) {
                 if (unresolved) {
-                    diagnostics.add(Diagnostic.warning(
-                            "left unused-looking star import " + star.ownerName + ".* because the file has unresolved types",
-                            star.line,
-                            1));
+                    diagnostics.add(
+                        Diagnostic.warning("left unused-looking star import " + star.ownerName + ".* because the file has unresolved types", star.line, 1)
+                    );
                     incomplete = true;
                     continue;
                 }
                 if (!star.span.trailingComment.isEmpty()) {
-                    diagnostics.add(Diagnostic.warning(
-                            "left unused star import " + star.ownerName + ".* unchanged because it has a trailing comment",
-                            star.line,
-                            1));
+                    diagnostics.add(
+                        Diagnostic.warning("left unused star import " + star.ownerName + ".* unchanged because it has a trailing comment", star.line, 1)
+                    );
                     incomplete = true;
                     continue;
                 }
@@ -295,11 +264,7 @@ final class DefaultStarExpander implements StarExpander {
     }
 
     private List<String> compilerOptions() {
-        return List.of(
-                "--release",
-                Integer.toString(languageLevel.release()),
-                "-proc:none",
-                "-Xlint:none");
+        return List.of("--release", Integer.toString(languageLevel.release()), "-proc:none", "-Xlint:none");
     }
 
     private static CompilationUnitTree first(Iterable<? extends CompilationUnitTree> units) {
@@ -318,12 +283,8 @@ final class DefaultStarExpander implements StarExpander {
             if (isUnresolvedSymbol(diagnostic.getCode())) {
                 continue;
             }
-            int line = diagnostic.getLineNumber() == javax.tools.Diagnostic.NOPOS
-                    ? 0
-                    : (int) diagnostic.getLineNumber();
-            int column = diagnostic.getColumnNumber() == javax.tools.Diagnostic.NOPOS
-                    ? 0
-                    : (int) diagnostic.getColumnNumber();
+            int line = diagnostic.getLineNumber() == javax.tools.Diagnostic.NOPOS ? 0 : (int) diagnostic.getLineNumber();
+            int column = diagnostic.getColumnNumber() == javax.tools.Diagnostic.NOPOS ? 0 : (int) diagnostic.getColumnNumber();
             String message = diagnostic.getMessage(null);
             fatal.add(Diagnostic.error(message == null ? diagnostic.getCode() : message, line, column));
         }
@@ -332,21 +293,17 @@ final class DefaultStarExpander implements StarExpander {
 
     private static boolean hasUnresolvedSymbols(DiagnosticCollector<JavaFileObject> collector) {
         for (javax.tools.Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
-            if (diagnostic.getKind() == javax.tools.Diagnostic.Kind.ERROR
-                    && isUnresolvedSymbol(diagnostic.getCode())) {
+            if (diagnostic.getKind() == javax.tools.Diagnostic.Kind.ERROR && isUnresolvedSymbol(diagnostic.getCode())) {
                 return true;
             }
         }
         return false;
     }
 
-    private static Set<String> ambiguousNames(
-            String source, DiagnosticCollector<JavaFileObject> collector) {
+    private static Set<String> ambiguousNames(String source, DiagnosticCollector<JavaFileObject> collector) {
         Set<String> names = new LinkedHashSet<>();
         for (javax.tools.Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
-            if (diagnostic.getKind() != javax.tools.Diagnostic.Kind.ERROR
-                    || diagnostic.getCode() == null
-                    || !diagnostic.getCode().contains("ambiguous")) {
+            if (diagnostic.getKind() != javax.tools.Diagnostic.Kind.ERROR || diagnostic.getCode() == null || !diagnostic.getCode().contains("ambiguous")) {
                 continue;
             }
             long start = diagnostic.getStartPosition();
@@ -355,8 +312,7 @@ final class DefaultStarExpander implements StarExpander {
                 continue;
             }
             String name = source.substring((int) start, (int) end);
-            if (Character.isJavaIdentifierStart(name.charAt(0))
-                    && name.chars().allMatch(Character::isJavaIdentifierPart)) {
+            if (Character.isJavaIdentifierStart(name.charAt(0)) && name.chars().allMatch(Character::isJavaIdentifierPart)) {
                 names.add(name);
             }
         }
@@ -367,15 +323,14 @@ final class DefaultStarExpander implements StarExpander {
         if (code == null) {
             return false;
         }
-        return code.contains("cant.resolve")
-                || code.contains("cant.find.symbol")
-                || code.endsWith("doesnt.exist")
-                || code.contains("package.does.not.exist")
-                || code.contains("ambiguous");
+        return code.contains("cant.resolve") ||
+            code.contains("cant.find.symbol") ||
+            code.endsWith("doesnt.exist") ||
+            code.contains("package.does.not.exist") ||
+            code.contains("ambiguous");
     }
 
-    static boolean isUnusualImport(
-            String source, int declStart, int declEnd, String ownerName, boolean staticImport) {
+    static boolean isUnusualImport(String source, int declStart, int declEnd, String ownerName, boolean staticImport) {
         if (declStart < 0 || declEnd < declStart || declEnd > source.length()) {
             return true;
         }
@@ -404,40 +359,32 @@ final class DefaultStarExpander implements StarExpander {
     }
 
     private static void assign(
-            Set<Element> used,
-            Trees trees,
-            CompilationUnitTree unit,
-            String packageName,
-            Set<String> singleTypeSimpleNames,
-            Set<String> singleStaticSimpleNames,
-            List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
-            Set<StarImport> frozen,
-            List<Diagnostic> diagnostics) {
+        Set<Element> used,
+        Trees trees,
+        CompilationUnitTree unit,
+        String packageName,
+        Set<String> singleTypeSimpleNames,
+        Set<String> singleStaticSimpleNames,
+        List<StarImport> stars,
+        LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
+        Set<StarImport> frozen,
+        List<Diagnostic> diagnostics
+    ) {
         for (Element element : used) {
-            recordUse(
-                    element,
-                    trees,
-                    unit,
-                    packageName,
-                    singleTypeSimpleNames,
-                    singleStaticSimpleNames,
-                    stars,
-                    assigned,
-                    frozen,
-                    diagnostics);
+            recordUse(element, trees, unit, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
         }
     }
 
     private static void assignUnresolved(
-            Set<String> unresolved,
-            String packageName,
-            Set<String> singleTypeSimpleNames,
-            Set<String> singleStaticSimpleNames,
-            List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
-            Set<StarImport> frozen,
-            List<Diagnostic> diagnostics) {
+        Set<String> unresolved,
+        String packageName,
+        Set<String> singleTypeSimpleNames,
+        Set<String> singleStaticSimpleNames,
+        List<StarImport> stars,
+        LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
+        Set<StarImport> frozen,
+        List<Diagnostic> diagnostics
+    ) {
         for (String simple : unresolved) {
             if (singleTypeSimpleNames.contains(simple) || singleStaticSimpleNames.contains(simple)) {
                 continue;
@@ -453,49 +400,34 @@ final class DefaultStarExpander implements StarExpander {
             }
             owners = uniqueOwners(owners);
             if (owners.size() == 1) {
-                recordUse(
-                        members.get(0),
-                        null,
-                        null,
-                        packageName,
-                        singleTypeSimpleNames,
-                        singleStaticSimpleNames,
-                        stars,
-                        assigned,
-                        frozen,
-                        diagnostics);
+                recordUse(members.get(0), null, null, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
             } else if (owners.size() > 1) {
                 frozen.addAll(owners);
-                diagnostics.add(Diagnostic.error(
-                        simple
-                                + " is ambiguous between "
-                                + names(owners, simple)
-                                + "; left those star imports unchanged",
-                        owners.get(0).line,
-                        1));
+                diagnostics.add(
+                    Diagnostic.error(simple + " is ambiguous between " + names(owners, simple) + "; left those star imports unchanged", owners.get(0).line, 1)
+                );
             }
         }
     }
 
     private static void recordUse(
-            Element element,
-            Trees trees,
-            CompilationUnitTree unit,
-            String packageName,
-            Set<String> singleTypeSimpleNames,
-            Set<String> singleStaticSimpleNames,
-            List<StarImport> stars,
-            LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
-            Set<StarImport> frozen,
-            List<Diagnostic> diagnostics) {
+        Element element,
+        Trees trees,
+        CompilationUnitTree unit,
+        String packageName,
+        Set<String> singleTypeSimpleNames,
+        Set<String> singleStaticSimpleNames,
+        List<StarImport> stars,
+        LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
+        Set<StarImport> frozen,
+        List<Diagnostic> diagnostics
+    ) {
         if (trees != null && unit != null && declaredIn(trees, unit, element)) {
             return;
         }
         String simple = element.getSimpleName().toString();
         if (element instanceof TypeElement type) {
-            if (isJavaLangTopLevel(type)
-                    || isTopLevelIn(type, packageName)
-                    || singleTypeSimpleNames.contains(simple)) {
+            if (isJavaLangTopLevel(type) || isTopLevelIn(type, packageName) || singleTypeSimpleNames.contains(simple)) {
                 return;
             }
         } else if (!isStaticImportable(element) || singleStaticSimpleNames.contains(simple)) {
@@ -512,13 +444,9 @@ final class DefaultStarExpander implements StarExpander {
             assigned.get(owners.get(0)).add(element);
         } else if (owners.size() > 1) {
             frozen.addAll(owners);
-            diagnostics.add(Diagnostic.error(
-                    simple
-                            + " is ambiguous between "
-                            + names(owners, simple)
-                            + "; left those star imports unchanged",
-                    owners.get(0).line,
-                    1));
+            diagnostics.add(
+                Diagnostic.error(simple + " is ambiguous between " + names(owners, simple) + "; left those star imports unchanged", owners.get(0).line, 1)
+            );
         }
     }
 
@@ -543,18 +471,14 @@ final class DefaultStarExpander implements StarExpander {
 
     private static boolean isStaticImportable(Element element) {
         ElementKind kind = element.getKind();
-        return element.getModifiers().contains(Modifier.STATIC)
-                && (kind == ElementKind.FIELD
-                        || kind == ElementKind.ENUM_CONSTANT
-                        || kind == ElementKind.METHOD
-                        || kind.isClass()
-                        || kind.isInterface());
+        return element.getModifiers().contains(Modifier.STATIC) &&
+            (kind == ElementKind.FIELD || kind == ElementKind.ENUM_CONSTANT || kind == ElementKind.METHOD || kind.isClass() || kind.isInterface());
     }
 
     private static boolean isJavaLangTopLevel(TypeElement type) {
-        return type.getNestingKind() == NestingKind.TOP_LEVEL
-                && type.getEnclosingElement() instanceof PackageElement pkg
-                && pkg.getQualifiedName().contentEquals("java.lang");
+        return type.getNestingKind() == NestingKind.TOP_LEVEL &&
+            type.getEnclosingElement() instanceof PackageElement pkg &&
+            pkg.getQualifiedName().contentEquals("java.lang");
     }
 
     private static boolean isTopLevelIn(TypeElement type, String packageName) {
@@ -598,9 +522,7 @@ final class DefaultStarExpander implements StarExpander {
         }
         if (tree instanceof MemberSelectTree select) {
             String parent = qualifiedName(select.getExpression());
-            return parent.isEmpty()
-                    ? select.getIdentifier().toString()
-                    : parent + "." + select.getIdentifier();
+            return parent.isEmpty() ? select.getIdentifier().toString() : parent + "." + select.getIdentifier();
         }
         return "";
     }
@@ -614,13 +536,7 @@ final class DefaultStarExpander implements StarExpander {
         final boolean staticImport;
         final Elements elements;
 
-        StarImport(
-                LineSpan span,
-                Element owner,
-                String ownerName,
-                int line,
-                boolean staticImport,
-                Elements elements) {
+        StarImport(LineSpan span, Element owner, String ownerName, int line, boolean staticImport, Elements elements) {
             this.span = span;
             this.owner = owner;
             this.ownerName = ownerName;
@@ -743,17 +659,13 @@ final class DefaultStarExpander implements StarExpander {
         @Override
         public Void visitIdentifier(IdentifierTree node, Void unused) {
             Element element = trees.getElement(getCurrentPath());
-            if (element instanceof TypeElement type
-                    && isNamedType(type)
-                    && type.getSimpleName().contentEquals(node.getName())) {
+            if (element instanceof TypeElement type && isNamedType(type) && type.getSimpleName().contentEquals(node.getName())) {
                 if (type.asType().getKind() == TypeKind.ERROR) {
                     unresolved.add(node.getName().toString());
                 } else {
                     used.add(type);
                 }
-            } else if (element != null
-                    && element.getSimpleName().contentEquals(node.getName())
-                    && isStaticImportable(element)) {
+            } else if (element != null && element.getSimpleName().contentEquals(node.getName()) && isStaticImportable(element)) {
                 used.add(element);
             } else if (element == null || looksLikeTypeName(node.getName().toString())) {
                 unresolved.add(node.getName().toString());
@@ -814,11 +726,9 @@ final class DefaultStarExpander implements StarExpander {
                 Element element = docTrees.getElement(getCurrentPath());
                 if (element instanceof TypeElement type && isNamedType(type)) {
                     used.add(type);
-                } else if (element instanceof ExecutableElement executable
-                        && executable.getEnclosingElement() instanceof TypeElement type) {
+                } else if (element instanceof ExecutableElement executable && executable.getEnclosingElement() instanceof TypeElement type) {
                     used.add(type);
-                } else if (element instanceof VariableElement variable
-                        && variable.getEnclosingElement() instanceof TypeElement type) {
+                } else if (element instanceof VariableElement variable && variable.getEnclosingElement() instanceof TypeElement type) {
                     used.add(type);
                 } else {
                     String signature = node.getSignature();

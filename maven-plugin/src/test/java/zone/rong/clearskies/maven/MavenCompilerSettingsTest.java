@@ -1,12 +1,17 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.maven;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import zone.rong.clearskies.api.LanguageLevel;
-import java.util.Properties;
+
 import org.junit.jupiter.api.Test;
+
+import java.util.Properties;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class MavenCompilerSettingsTest {
 
@@ -14,40 +19,40 @@ class MavenCompilerSettingsTest {
     void explicitOverrideWinsOverCompilerRelease() {
         Properties properties = new Properties();
         properties.setProperty("maven.compiler.release", "17");
-        assertEquals(LanguageLevel.JAVA_21, MavenCompilerSettings.languageLevel(21, properties));
+        assertThat(MavenCompilerSettings.languageLevel(21, properties)).isEqualTo(LanguageLevel.JAVA_21);
     }
 
     @Test
     void compilerReleaseIsUsedWhenClearSkiesDoesNotOverride() {
         Properties properties = new Properties();
         properties.setProperty("maven.compiler.release", "17");
-        assertEquals(LanguageLevel.JAVA_17, MavenCompilerSettings.languageLevel(null, properties));
+        assertThat(MavenCompilerSettings.languageLevel(null, properties)).isEqualTo(LanguageLevel.JAVA_17);
     }
 
     @Test
     void compilerSourceIsUsedWhenReleaseIsAbsent() {
         Properties properties = new Properties();
         properties.setProperty("maven.compiler.source", "21");
-        assertEquals(LanguageLevel.JAVA_21, MavenCompilerSettings.languageLevel(null, properties));
+        assertThat(MavenCompilerSettings.languageLevel(null, properties)).isEqualTo(LanguageLevel.JAVA_21);
     }
 
     @Test
     void processSourcesDoesNotWalkTestSources() {
-        assertTrue(AbstractClearSkiesMojo.processMainSources("process-sources"));
-        assertFalse(AbstractClearSkiesMojo.processTestSources(true, "process-sources"));
+        assertThat(AbstractClearSkiesMojo.processMainSources("process-sources")).isTrue();
+        assertThat(AbstractClearSkiesMojo.processTestSources(true, "process-sources")).isFalse();
     }
 
     @Test
     void processTestSourcesWalksTestsOnly() {
-        assertFalse(AbstractClearSkiesMojo.processMainSources("process-test-sources"));
-        assertTrue(AbstractClearSkiesMojo.processTestSources(true, "process-test-sources"));
+        assertThat(AbstractClearSkiesMojo.processMainSources("process-test-sources")).isFalse();
+        assertThat(AbstractClearSkiesMojo.processTestSources(true, "process-test-sources")).isTrue();
     }
 
     @Test
     void directInvocationWalksBothWhenTestsAreIncluded() {
-        assertTrue(AbstractClearSkiesMojo.processMainSources(null));
-        assertTrue(AbstractClearSkiesMojo.processTestSources(true, null));
-        assertFalse(AbstractClearSkiesMojo.processTestSources(false, null));
+        assertThat(AbstractClearSkiesMojo.processMainSources(null)).isTrue();
+        assertThat(AbstractClearSkiesMojo.processTestSources(true, null)).isTrue();
+        assertThat(AbstractClearSkiesMojo.processTestSources(false, null)).isFalse();
     }
 
 }

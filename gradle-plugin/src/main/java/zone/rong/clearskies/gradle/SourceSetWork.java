@@ -1,7 +1,12 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.gradle;
 
 import zone.rong.clearskies.api.LanguageLevel;
-import javax.inject.Inject;
+
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Classpath;
@@ -10,6 +15,8 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+
+import javax.inject.Inject;
 
 /**
  * One source set's sources plus the compile classpath javac attributes them against.

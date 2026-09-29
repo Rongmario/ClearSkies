@@ -1,5 +1,6 @@
 plugins {
     application
+    id("com.cleanroommc.conventions")
 }
 
 application {
@@ -18,12 +19,9 @@ tasks.jar {
 
 dependencies {
     implementation(project(":core"))
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.test {
-    useJUnitPlatform()
     val launcher = layout.buildDirectory.file("install/clearskies/bin/clearskies")
     dependsOn(tasks.named("installDist"))
     inputs.file(launcher)

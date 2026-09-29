@@ -1,77 +1,82 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import zone.rong.clearskies.api.LanguageLevel;
+
+import org.junit.jupiter.api.Test;
+
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CliOptionsTest {
 
     @Test
     void checkingIsTheDefaultMode() {
-        CliOptions options = CliOptions.parse(new String[] {"src"});
-        assertEquals(CliOptions.Mode.CHECK, options.mode());
-        assertEquals(List.of(Path.of("src")), options.paths());
+        CliOptions options = CliOptions.parse(new String[] { "src" });
+        assertThat(options.mode()).isEqualTo(CliOptions.Mode.CHECK);
+        assertThat(options.paths()).isEqualTo(List.of(Path.of("src")));
     }
 
     @Test
     void modesAndResolutionFlagsParse() {
-        CliOptions options =
-                CliOptions.parse(
-                        new String[] {
-                            "--write",
-                            "--classpath",
-                            "lib/a.jar" + java.io.File.pathSeparator + "lib/b.jar",
-                            "--source-path",
-                            "src",
-                            "--release",
-                            "21",
-                            "-j",
-                            "3",
-                            "--include",
-                            "**/*.java",
-                            "--exclude",
-                            "**/generated/**",
-                            "src",
-                            "test"
-                        });
+        CliOptions options = CliOptions.parse(
+            new String[] {
+                "--write",
+                "--classpath",
+                "lib/a.jar" + java.io.File.pathSeparator + "lib/b.jar",
+                "--source-path",
+                "src",
+                "--release",
+                "21",
+                "-j",
+                "3",
+                "--include",
+                "**/*.java",
+                "--exclude",
+                "**/generated/**",
+                "src",
+                "test"
+            }
+        );
 
-        assertEquals(CliOptions.Mode.WRITE, options.mode());
-        assertEquals(LanguageLevel.JAVA_21, options.languageLevel());
-        assertEquals(3, options.parallelism());
-        assertEquals(List.of("**/*.java"), options.includes());
-        assertEquals(List.of("**/generated/**"), options.excludes());
-        assertEquals(2, options.paths().size());
-        assertEquals(2, options.classpath().size());
-        assertEquals(List.of(Path.of("src")), options.sourcePath());
+        assertThat(options.mode()).isEqualTo(CliOptions.Mode.WRITE);
+        assertThat(options.languageLevel()).isEqualTo(LanguageLevel.JAVA_21);
+        assertThat(options.parallelism()).isEqualTo(3);
+        assertThat(options.includes()).isEqualTo(List.of("**/*.java"));
+        assertThat(options.excludes()).isEqualTo(List.of("**/generated/**"));
+        assertThat(options.paths().size()).isEqualTo(2);
+        assertThat(options.classpath().size()).isEqualTo(2);
+        assertThat(options.sourcePath()).isEqualTo(List.of(Path.of("src")));
     }
 
     @Test
     void stdinDefaultsToWritingTheExpandedSourceOut() {
-        CliOptions options = CliOptions.parse(new String[] {"--stdin-name", "Foo.java"});
-        assertTrue(options.readStdin());
-        assertEquals("Foo.java", options.stdinName());
-        assertEquals(CliOptions.Mode.WRITE, options.mode());
+        CliOptions options = CliOptions.parse(new String[] { "--stdin-name", "Foo.java" });
+        assertThat(options.readStdin()).isTrue();
+        assertThat(options.stdinName()).isEqualTo("Foo.java");
+        assertThat(options.mode()).isEqualTo(CliOptions.Mode.WRITE);
     }
 
     @Test
     void malformedCommandLinesAreRejected() {
-        assertThrows(CliOptions.CliException.class, () -> CliOptions.parse(new String[] {}));
-        assertThrows(CliOptions.CliException.class, () -> CliOptions.parse(new String[] {"--nope", "src"}));
-        assertThrows(CliOptions.CliException.class, () -> CliOptions.parse(new String[] {"--release"}));
+        assertThatThrownBy(() -> CliOptions.parse(new String[] {})).isInstanceOf(CliOptions.CliException.class);
+        assertThatThrownBy(() -> CliOptions.parse(new String[] { "--nope", "src" })).isInstanceOf(CliOptions.CliException.class);
+        assertThatThrownBy(() -> CliOptions.parse(new String[] { "--release" })).isInstanceOf(CliOptions.CliException.class);
     }
 
     @Test
     void helpNeedsNoPaths() {
-        CliOptions options = CliOptions.parse(new String[] {"--help"});
-        assertEquals(CliOptions.Mode.HELP, options.mode());
-        assertTrue(options.paths().isEmpty());
-        assertFalse(options.readStdin());
+        CliOptions options = CliOptions.parse(new String[] { "--help" });
+        assertThat(options.mode()).isEqualTo(CliOptions.Mode.HELP);
+        assertThat(options.paths().isEmpty()).isTrue();
+        assertThat(options.readStdin()).isFalse();
     }
 
 }

@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
 import zone.rong.clearskies.api.Diagnostic;
@@ -8,6 +13,7 @@ import zone.rong.clearskies.api.StarExpander;
 import zone.rong.clearskies.core.AtomicFiles;
 import zone.rong.clearskies.core.ClearSkies;
 import zone.rong.clearskies.core.PathGlobs;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -106,21 +112,18 @@ final class CliRunner {
         }
 
         if (options.verbose()) {
-            err.println(
-                    "clearskies: " + files.size() + " files, " + changed.get() + " changed, " + failed.get() + " failed");
+            err.println("clearskies: " + files.size() + " files, " + changed.get() + " changed, " + failed.get() + " failed");
         }
         if (failed.get() > 0) {
             return ERROR;
         }
-        if (options.mode() != CliOptions.Mode.WRITE
-                && (changed.get() > 0 || incomplete.get() > 0)) {
+        if (options.mode() != CliOptions.Mode.WRITE && (changed.get() > 0 || incomplete.get() > 0)) {
             return WOULD_CHANGE;
         }
         return SUCCESS;
     }
 
-    private void processFile(
-            Path file, StarExpander expander, AtomicInteger changed, AtomicInteger failed, AtomicInteger incomplete) {
+    private void processFile(Path file, StarExpander expander, AtomicInteger changed, AtomicInteger failed, AtomicInteger incomplete) {
         String source;
         try {
             source = Files.readString(file, options.encoding());
@@ -204,10 +207,10 @@ final class CliRunner {
         List<Path> roots = new ArrayList<>(options.sourcePath());
         roots.addAll(extraSourceRoots);
         return ClearSkies.newExpander()
-                .classpath(ExpandClasspath.of(options.classpath()).withSourceRoots(roots))
-                .languageLevel(options.languageLevel())
-                .encoding(options.encoding())
-                .build();
+            .classpath(ExpandClasspath.of(options.classpath()).withSourceRoots(roots))
+            .languageLevel(options.languageLevel())
+            .encoding(options.encoding())
+            .build();
     }
 
     private List<Path> sourceRootsFor(List<Path> files) {
@@ -241,11 +244,11 @@ final class CliRunner {
             }
             try (var walk = Files.walk(path)) {
                 walk.filter(Files::isRegularFile)
-                        .filter(candidate -> candidate.toString().endsWith(".java"))
-                        .sorted()
-                        .map(candidate -> candidate.toAbsolutePath().normalize())
-                        .filter(candidate -> PathGlobs.allowed(candidate, root, options.includes(), options.excludes()))
-                        .forEach(files::add);
+                    .filter(candidate -> candidate.toString().endsWith(".java"))
+                    .sorted()
+                    .map(candidate -> candidate.toAbsolutePath().normalize())
+                    .filter(candidate -> PathGlobs.allowed(candidate, root, options.includes(), options.excludes()))
+                    .forEach(files::add);
             } catch (UncheckedIOException e) {
                 throw e.getCause();
             }

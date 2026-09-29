@@ -1,9 +1,15 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
 import zone.rong.clearskies.api.ExpandClasspath;
 import zone.rong.clearskies.api.LanguageLevel;
 import zone.rong.clearskies.api.StarExpander;
 import zone.rong.clearskies.api.StarExpanderBuilder;
+
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;

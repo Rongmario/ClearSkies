@@ -1,9 +1,12 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.gradle;
 
 import zone.rong.clearskies.api.LanguageLevel;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
@@ -15,6 +18,10 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Applies ClearSkies to a Gradle project.
@@ -55,10 +62,13 @@ public class ClearSkiesPlugin implements Plugin<Project> {
             task.getMarkerFile().set(project.getLayout().getBuildDirectory().file("clearskies/check.marker"));
         });
 
-        project.getPlugins().withType(LifecycleBasePlugin.class, ignored -> project.getTasks()
-                .named(LifecycleBasePlugin.CHECK_TASK_NAME)
-                .configure(task -> task.dependsOn(
-                        project.provider(() -> extension.getEnforceOnCheck().get() ? List.of(check) : List.of()))));
+        project.getPlugins()
+            .withType(
+                LifecycleBasePlugin.class,
+                ignored -> project.getTasks()
+                    .named(LifecycleBasePlugin.CHECK_TASK_NAME)
+                    .configure(task -> task.dependsOn(project.provider(() -> extension.getEnforceOnCheck().get() ? List.of(check) : List.of())))
+            );
 
         check.configure(task -> task.mustRunAfter(apply));
     }
@@ -67,8 +77,7 @@ public class ClearSkiesPlugin implements Plugin<Project> {
         task.getTargets().addAll(targets);
     }
 
-    private static List<SourceSetWork> sourceSetWork(
-            Project project, ClearSkiesExtension extension, ObjectFactory objects) {
+    private static List<SourceSetWork> sourceSetWork(Project project, ClearSkiesExtension extension, ObjectFactory objects) {
         JavaPluginExtension java = project.getExtensions().findByType(JavaPluginExtension.class);
         if (java == null) {
             return List.of();
@@ -82,9 +91,12 @@ public class ClearSkiesPlugin implements Plugin<Project> {
                 continue;
             }
             SourceSetWork work = objects.newInstance(SourceSetWork.class, sourceSet.getName());
-            work.getSource().from(sourceSet.getAllJava()
-                    .matching(patterns -> patterns.include(extension.getIncludes().get()).exclude(extension.getExcludes().get()))
-                    .filter(file -> file.getName().endsWith(".java")));
+            work.getSource()
+                .from(
+                    sourceSet.getAllJava()
+                        .matching(patterns -> patterns.include(extension.getIncludes().get()).exclude(extension.getExcludes().get()))
+                        .filter(file -> file.getName().endsWith(".java"))
+                );
             work.getClasspath().from(existing(sourceSet.getCompileClasspath()));
             work.getSourceRoots().from(existing(sourceSet.getAllJava().getSourceDirectories()));
             if (main != null && !SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName())) {

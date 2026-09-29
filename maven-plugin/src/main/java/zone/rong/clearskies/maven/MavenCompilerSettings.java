@@ -1,12 +1,19 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.maven;
 
 import zone.rong.clearskies.api.LanguageLevel;
+
+import org.apache.maven.model.Plugin;
+import org.apache.maven.project.MavenProject;
+
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
-import org.apache.maven.model.Plugin;
-import org.apache.maven.project.MavenProject;
 
 /** Reads javac release and encoding from Maven compiler configuration. */
 final class MavenCompilerSettings {
@@ -18,10 +25,11 @@ final class MavenCompilerSettings {
             return LanguageLevel.ofRelease(override);
         }
         Integer release = firstInteger(
-                property(project, "maven.compiler.release"),
-                pluginChild(project, "release"),
-                property(project, "maven.compiler.source"),
-                pluginChild(project, "source"));
+            property(project, "maven.compiler.release"),
+            pluginChild(project, "release"),
+            property(project, "maven.compiler.source"),
+            pluginChild(project, "source")
+        );
         return release == null ? LanguageLevel.ofRuntime() : LanguageLevel.ofRelease(release);
     }
 
@@ -30,9 +38,10 @@ final class MavenCompilerSettings {
             return Charset.forName(override);
         }
         String encoding = firstNonBlank(
-                pluginChild(project, "encoding"),
-                property(project, "project.build.sourceEncoding"),
-                property(project, "maven.compiler.encoding"));
+            pluginChild(project, "encoding"),
+            property(project, "project.build.sourceEncoding"),
+            property(project, "maven.compiler.encoding")
+        );
         return encoding == null ? StandardCharsets.UTF_8 : Charset.forName(encoding);
     }
 
@@ -40,9 +49,7 @@ final class MavenCompilerSettings {
         if (override != null) {
             return LanguageLevel.ofRelease(override);
         }
-        Integer release = firstInteger(
-                properties.getProperty("maven.compiler.release"),
-                properties.getProperty("maven.compiler.source"));
+        Integer release = firstInteger(properties.getProperty("maven.compiler.release"), properties.getProperty("maven.compiler.source"));
         return release == null ? LanguageLevel.ofRuntime() : LanguageLevel.ofRelease(release);
     }
 

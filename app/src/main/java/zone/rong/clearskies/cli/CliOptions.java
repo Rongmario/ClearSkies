@@ -1,6 +1,12 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
 import zone.rong.clearskies.api.LanguageLevel;
+
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -14,18 +20,19 @@ import java.util.List;
  * fast and to be one self-contained jar.
  */
 public record CliOptions(
-        Mode mode,
-        List<Path> paths,
-        List<Path> classpath,
-        List<Path> sourcePath,
-        List<String> includes,
-        List<String> excludes,
-        LanguageLevel languageLevel,
-        Charset encoding,
-        boolean readStdin,
-        String stdinName,
-        int parallelism,
-        boolean verbose) {
+    Mode mode,
+    List<Path> paths,
+    List<Path> classpath,
+    List<Path> sourcePath,
+    List<String> includes,
+    List<String> excludes,
+    LanguageLevel languageLevel,
+    Charset encoding,
+    boolean readStdin,
+    String stdinName,
+    int parallelism,
+    boolean verbose
+) {
 
     /** What the CLI was asked to do. */
     public enum Mode {
@@ -92,14 +99,11 @@ public record CliOptions(
                 case "--version" -> {
                     return helpOptions(Mode.VERSION);
                 }
-                case "--classpath", "-cp" ->
-                        classpath.addAll(splitPaths(value(arguments, ++i, "--classpath")));
-                case "--source-path" ->
-                        sourcePath.addAll(splitPaths(value(arguments, ++i, "--source-path")));
+                case "--classpath", "-cp" -> classpath.addAll(splitPaths(value(arguments, ++i, "--classpath")));
+                case "--source-path" -> sourcePath.addAll(splitPaths(value(arguments, ++i, "--source-path")));
                 case "--include" -> includes.add(value(arguments, ++i, "--include"));
                 case "--exclude" -> excludes.add(value(arguments, ++i, "--exclude"));
-                case "--release", "--language-level" ->
-                        languageLevel = LanguageLevel.ofRelease(intValue(arguments, ++i, "--release"));
+                case "--release", "--language-level" -> languageLevel = LanguageLevel.ofRelease(intValue(arguments, ++i, "--release"));
                 case "--encoding" -> encoding = Charset.forName(value(arguments, ++i, "--encoding"));
                 case "--stdin" -> readStdin = true;
                 case "--stdin-name" -> {
@@ -124,34 +128,36 @@ public record CliOptions(
             mode = Mode.WRITE;
         }
         return new CliOptions(
-                mode,
-                List.copyOf(paths),
-                List.copyOf(classpath),
-                List.copyOf(sourcePath),
-                List.copyOf(includes),
-                List.copyOf(excludes),
-                languageLevel,
-                encoding,
-                readStdin,
-                stdinName,
-                parallelism,
-                verbose);
+            mode,
+            List.copyOf(paths),
+            List.copyOf(classpath),
+            List.copyOf(sourcePath),
+            List.copyOf(includes),
+            List.copyOf(excludes),
+            languageLevel,
+            encoding,
+            readStdin,
+            stdinName,
+            parallelism,
+            verbose
+        );
     }
 
     private static CliOptions helpOptions(Mode mode) {
         return new CliOptions(
-                mode,
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                LanguageLevel.ofRuntime(),
-                StandardCharsets.UTF_8,
-                false,
-                "<stdin>",
-                1,
-                false);
+            mode,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            LanguageLevel.ofRuntime(),
+            StandardCharsets.UTF_8,
+            false,
+            "<stdin>",
+            1,
+            false
+        );
     }
 
     private static List<Path> splitPaths(String raw) {

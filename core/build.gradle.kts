@@ -2,13 +2,10 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 
 plugins {
     `java-library`
+    id("com.cleanroommc.conventions")
 }
 
-apply(from = rootProject.file("gradle/cleanroom-publishing.gradle.kts"))
-
-java {
-    withSourcesJar()
-}
+description = "Expands Java star imports into the explicit single-type imports the file actually uses."
 
 base {
     archivesName.set("clearskies")
@@ -53,11 +50,7 @@ listOf("apiElements", "runtimeElements").forEach { name ->
     }
 }
 
-dependencies {
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
-}
-
-tasks.test {
-    useJUnitPlatform()
+publishing.publications.withType<MavenPublication>().configureEach {
+    artifactId = "clearskies"
+    pom.name = "ClearSkies"
 }

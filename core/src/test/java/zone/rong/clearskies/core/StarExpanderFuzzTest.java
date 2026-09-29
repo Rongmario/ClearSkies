@@ -1,13 +1,19 @@
-package zone.rong.clearskies.core;
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+package zone.rong.clearskies.core;
 
 import zone.rong.clearskies.api.ExpandRequest;
 import zone.rong.clearskies.api.ExpandResult;
 import zone.rong.clearskies.api.StarExpander;
-import java.util.Random;
+
 import org.junit.jupiter.api.Test;
+
+import java.util.Random;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Finite seeded generator over review-sensitive shapes. Not an open-ended campaign.
@@ -30,18 +36,18 @@ class StarExpanderFuzzTest {
             switch (result.outcome()) {
                 case FAILED -> {
                     seenFailed++;
-                    assertEquals(source, result.text(), "FAILED must return the original source");
-                    assertTrue(result.hasErrors());
+                    assertThat(result.text()).as("FAILED must return the original source").isEqualTo(source);
+                    assertThat(result.hasErrors()).isTrue();
                 }
                 case EXPANDED -> {
                     seenExpanded++;
-                    assertTrue(result.text().contains("class ") || result.text().contains("package "), result.text());
+                    assertThat(result.text().contains("class ") || result.text().contains("package ")).as(result.text()).isTrue();
                 }
-                case INCOMPLETE, UNCHANGED -> assertTrue(result.text() != null);
+                default -> assertThat(result.text() != null).isTrue();
             }
         }
-        assertTrue(seenFailed > 0, "seeded corpus should include malformed files");
-        assertTrue(seenExpanded > 0, "seeded corpus should include clean expansions");
+        assertThat(seenFailed > 0).as("seeded corpus should include malformed files").isTrue();
+        assertThat(seenExpanded > 0).as("seeded corpus should include clean expansions").isTrue();
     }
 
     private static String name(Random random) {

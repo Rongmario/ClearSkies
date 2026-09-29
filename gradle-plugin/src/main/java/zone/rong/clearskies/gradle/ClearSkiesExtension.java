@@ -1,10 +1,17 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.gradle;
 
 import zone.rong.clearskies.api.LanguageLevel;
-import java.util.List;
+
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+
+import java.util.List;
 
 /**
  * The {@code clearSkies { }} block.

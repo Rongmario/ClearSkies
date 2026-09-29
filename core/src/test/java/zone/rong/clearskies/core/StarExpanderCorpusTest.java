@@ -1,20 +1,25 @@
-package zone.rong.clearskies.core;
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+package zone.rong.clearskies.core;
 
 import zone.rong.clearskies.api.ExpandClasspath;
 import zone.rong.clearskies.api.ExpandRequest;
 import zone.rong.clearskies.api.ExpandResult;
 import zone.rong.clearskies.api.StarExpander;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Fixed corpus of shapes called out in the review: unicode, comments, malformed files,
@@ -27,36 +32,28 @@ class StarExpanderCorpusTest {
     }
 
     @ParameterizedTest
-    @CsvSource({
-        "Sample.java",
-        "My File.java",
-        "weird-name.java",
-        "package-info.java"
-    })
+    @CsvSource({ "Sample.java", "My File.java", "weird-name.java", "package-info.java" })
     void unusualFileNamesDoNotCrashTheExpander(String name) {
         String source = "package sample;\n\nimport java.util.*;\n\nclass Sample { List x; }\n";
         if (name.equals("package-info.java")) {
             source = "@Deprecated\npackage sample;\n\nimport java.util.*;\n";
         }
         ExpandResult result = expand(source, name);
-        assertFalse(result.outcome() == ExpandResult.Outcome.FAILED, result.diagnostics().toString());
-        assertTrue(
-                source.equals(result.text()) || result.text().contains("import ") || result.text().contains("package "),
-                result.text());
+        assertThat(result.outcome() == ExpandResult.Outcome.FAILED).as(result.diagnostics().toString()).isFalse();
+        assertThat(source.equals(result.text()) || result.text().contains("import ") || result.text().contains("package ")).as(result.text()).isTrue();
     }
 
     @Test
     void unicodeEscapeInTheImportKeywordIsAttributed() {
         String source = "package sample;\n\n\\u0069mport java.util.*;\n\nclass Sample { List x; }\n";
         ExpandResult result = expand(source, "Sample.java");
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("java.util.List"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("java.util.List")).as(result.text()).isTrue();
     }
 
     @Test
     void commentedStarIsNotTreatedAsARewriteTarget() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 // import java.util.*;
@@ -65,16 +62,16 @@ class StarExpanderCorpusTest {
                 class Sample { List x; }
                 """;
         ExpandResult result = expand(source, "Sample.java");
-        assertEquals(ExpandResult.Outcome.UNCHANGED, result.outcome());
-        assertEquals(source, result.text());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.UNCHANGED);
+        assertThat(result.text()).isEqualTo(source);
     }
 
     @Test
     void malformedFileKeepsOriginalBytes() {
         String source = "import java.util.*; class Sample { List x;";
         ExpandResult result = expand(source, "Broken.java");
-        assertEquals(ExpandResult.Outcome.FAILED, result.outcome());
-        assertEquals(source, result.text());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.FAILED);
+        assertThat(result.text()).isEqualTo(source);
     }
 
     @Test
@@ -82,22 +79,19 @@ class StarExpanderCorpusTest {
         Path root = temp.resolve("src");
         Files.createDirectories(root.resolve("foo"));
         Files.writeString(
-                root.resolve("foo/Anno.java"),
-                "package foo;\nimport java.lang.annotation.Retention;\nimport java.lang.annotation.RetentionPolicy;\n"
-                        + "@Retention(RetentionPolicy.RUNTIME)\npublic @interface Anno {}\n");
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root)))
-                .build();
+            root.resolve("foo/Anno.java"),
+            "package foo;\nimport java.lang.annotation.Retention;\nimport java.lang.annotation.RetentionPolicy;\n" + "@Retention(RetentionPolicy.RUNTIME)\npublic @interface Anno {}\n"
+        );
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root))).build();
         String source = "@Anno\npackage sample;\n\nimport foo.*;\n";
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("package-info.java"));
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import foo.Anno;"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import foo.Anno;")).as(result.text()).isTrue();
     }
 
     @Test
     void javadocSeeTagKeepsTheStarOwner() {
-        String source =
-                """
+        String source = """
                 package sample;
 
                 import java.util.*;
@@ -106,8 +100,8 @@ class StarExpanderCorpusTest {
                 class Sample {}
                 """;
         ExpandResult result = expand(source, "Sample.java");
-        assertEquals(ExpandResult.Outcome.EXPANDED, result.outcome(), result.diagnostics().toString());
-        assertTrue(result.text().contains("import java.util.Map;"), result.text());
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text().contains("import java.util.Map;")).as(result.text()).isTrue();
     }
 
     @Test
@@ -117,13 +111,11 @@ class StarExpanderCorpusTest {
         Files.createDirectories(root.resolve("bar"));
         Files.writeString(root.resolve("foo/List.java"), "package foo;\npublic class List {}\n");
         Files.writeString(root.resolve("bar/List.java"), "package bar;\npublic class List {}\n");
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root)))
-                .build();
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root))).build();
         String source = "package sample;\n\nimport foo.*;\nimport bar.*;\n\nclass Sample { List x; }\n";
         ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
-        assertEquals(ExpandResult.Outcome.INCOMPLETE, result.outcome());
-        assertEquals(source, result.text());
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.INCOMPLETE);
+        assertThat(result.text()).isEqualTo(source);
     }
 
 }

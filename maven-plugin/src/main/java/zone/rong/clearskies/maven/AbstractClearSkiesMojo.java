@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.maven;
 
 import zone.rong.clearskies.api.Diagnostic;
@@ -9,6 +14,15 @@ import zone.rong.clearskies.api.StarExpander;
 import zone.rong.clearskies.core.AtomicFiles;
 import zone.rong.clearskies.core.ClearSkies;
 import zone.rong.clearskies.core.PathGlobs;
+
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecution;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
@@ -17,13 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.apache.maven.artifact.DependencyResolutionRequiredException;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecution;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 
 /**
  * Shared configuration and file walking for the ClearSkies goals.
@@ -80,7 +87,7 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
         LanguageLevel level = MavenCompilerSettings.languageLevel(languageLevel, project);
         List<String> wouldChange = new ArrayList<>();
         List<String> failures = new ArrayList<>();
-        int[] expanded = {0};
+        int[] expanded = { 0 };
         int seen = 0;
 
         if (processMain()) {
@@ -94,14 +101,12 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
             getLog().info("ClearSkies found no Java sources");
         }
         if (!failures.isEmpty()) {
-            throw new MojoExecutionException(
-                    "ClearSkies could not expand " + failures.size() + " file(s):\n" + String.join("\n", failures));
+            throw new MojoExecutionException("ClearSkies could not expand " + failures.size() + " file(s):\n" + String.join("\n", failures));
         }
         if (!wouldChange.isEmpty()) {
             throw new MojoFailureException(
-                    "ClearSkies found " + wouldChange.size()
-                            + " file(s) with expandable star imports or incomplete attribution. Run clearskies:apply.\n"
-                            + String.join("\n", wouldChange));
+                "ClearSkies found " + wouldChange.size() + " file(s) with expandable star imports or incomplete attribution. Run clearskies:apply.\n" + String.join("\n", wouldChange)
+            );
         }
         getLog().info("ClearSkies checked " + seen + " file(s), expanded " + expanded[0]);
     }
@@ -127,22 +132,18 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
     }
 
     private int process(
-            List<Path> files,
-            ExpandClasspath classpath,
-            Charset charset,
-            LanguageLevel level,
-            List<String> wouldChange,
-            List<String> failures,
-            int[] expanded)
-            throws MojoExecutionException {
+        List<Path> files,
+        ExpandClasspath classpath,
+        Charset charset,
+        LanguageLevel level,
+        List<String> wouldChange,
+        List<String> failures,
+        int[] expanded
+    ) throws MojoExecutionException {
         if (files.isEmpty()) {
             return 0;
         }
-        StarExpander expander = ClearSkies.newExpander()
-                .classpath(classpath)
-                .languageLevel(level)
-                .encoding(charset)
-                .build();
+        StarExpander expander = ClearSkies.newExpander().classpath(classpath).languageLevel(level).encoding(charset).build();
         for (Path file : files) {
             String source;
             try {
@@ -182,7 +183,8 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
                         getLog().info("Expanded " + file);
                     }
                 }
-                case UNCHANGED -> { }
+                default -> {
+                }
             }
         }
         return files.size();
@@ -255,10 +257,10 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
             }
             try (Stream<Path> walk = Files.walk(directory)) {
                 walk.filter(Files::isRegularFile)
-                        .filter(path -> path.toString().endsWith(".java"))
-                        .filter(path -> PathGlobs.allowed(path, base, includes, excludes))
-                        .sorted()
-                        .forEach(files::add);
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> PathGlobs.allowed(path, base, includes, excludes))
+                    .sorted()
+                    .forEach(files::add);
             } catch (IOException | UncheckedIOException e) {
                 throw new MojoExecutionException("Cannot walk " + directory, e);
             }

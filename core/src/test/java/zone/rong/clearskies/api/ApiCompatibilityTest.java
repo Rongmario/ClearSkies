@@ -1,7 +1,11 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.api;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -19,7 +23,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The public, dependency-free API against a committed source and binary surface baseline.
@@ -38,12 +43,9 @@ class ApiCompatibilityTest {
 
     @Test
     void publicApiMatchesTheCommittedBaseline() throws IOException {
-        assertTrue(Files.isRegularFile(BASELINE), () -> "missing API baseline: " + BASELINE.toAbsolutePath());
+        assertThat(Files.isRegularFile(BASELINE)).as(() -> "missing API baseline: " + BASELINE.toAbsolutePath()).isTrue();
         String expected = Files.readString(BASELINE, StandardCharsets.UTF_8);
-        assertEquals(
-                expected,
-                dump(),
-                "public API drifted from " + BASELINE + "; update the baseline if this is intentional");
+        assertThat(dump()).as("public API drifted from " + BASELINE + "; update the baseline if this is intentional").isEqualTo(expected);
     }
 
     @Test
@@ -53,9 +55,9 @@ class ApiCompatibilityTest {
         dumpType(StringValue.class, lines);
         String dump = String.join("\n", lines);
 
-        assertTrue(dump.contains("SUPER " + GenericValue.class.getName() + "<java.lang.String>"), dump);
-        assertTrue(dump.contains("protected T " + GenericValue.class.getName() + ".value()"), dump);
-        assertTrue(dump.contains("[bridge]"), dump);
+        assertThat(dump.contains("SUPER " + GenericValue.class.getName() + "<java.lang.String>")).as(dump).isTrue();
+        assertThat(dump.contains("protected T " + GenericValue.class.getName() + ".value()")).as(dump).isTrue();
+        assertThat(dump.contains("[bridge]")).as(dump).isTrue();
     }
 
     /** Regenerates the committed baseline. Run from the {@code core} project directory. */
@@ -237,9 +239,7 @@ class ApiCompatibilityTest {
     private static String constantValue(Field field) {
         int modifiers = field.getModifiers();
         Class<?> type = field.getType();
-        if (!Modifier.isStatic(modifiers)
-                || !Modifier.isFinal(modifiers)
-                || (!type.isPrimitive() && type != String.class)) {
+        if (!Modifier.isStatic(modifiers) || !Modifier.isFinal(modifiers) || (!type.isPrimitive() && type != String.class)) {
             return null;
         }
         try {

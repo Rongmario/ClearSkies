@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.core;
 
 /**
@@ -105,8 +110,7 @@ final class ImportRegion {
                     }
                     if (next == '*') {
                         index += 2;
-                        while (index + 1 < source.length()
-                                && !(source.charAt(index) == '*' && source.charAt(index + 1) == '/')) {
+                        while (index + 1 < source.length() && !(source.charAt(index) == '*' && source.charAt(index + 1) == '/')) {
                             index++;
                         }
                         if (index + 1 < source.length()) {

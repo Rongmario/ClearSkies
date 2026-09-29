@@ -1,8 +1,14 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.maven;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -18,11 +24,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
-import org.junit.jupiter.api.Test;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Keeps the hand-written plugin descriptor honest.
@@ -40,24 +43,16 @@ class MavenPluginDescriptorTest {
     private static final Path SOURCES = Path.of("src/main/java/zone/rong/clearskies/maven");
 
     private static final Pattern MOJO = Pattern.compile("@Mojo\\(([^)]*)\\)", Pattern.DOTALL);
-    private static final Pattern PARAMETER =
-            Pattern.compile(
-                    "@Parameter(?:\\(([^)]*)\\))?\\s+protected\\s+[\\w.<>, ]+?\\s+(\\w+)\\s*[;=]",
-                    Pattern.DOTALL);
+    private static final Pattern PARAMETER = Pattern.compile("@Parameter(?:\\(([^)]*)\\))?\\s+protected\\s+[\\w.<>, ]+?\\s+(\\w+)\\s*[;=]", Pattern.DOTALL);
     private static final Pattern ATTRIBUTE = Pattern.compile("(\\w+)\\s*=\\s*(\"[^\"]*\"|[\\w.]+)");
 
-    private record MojoSource(
-            String goal,
-            String phase,
-            String resolution,
-            String threadSafe,
-            String implementation) { }
+    private record MojoSource(String goal, String phase, String resolution, String threadSafe, String implementation) { }
 
     private record ParameterSource(String name, String property, String defaultValue) { }
 
     private static Document descriptor() throws Exception {
         Path path = Path.of(System.getProperty("clearskies.descriptor"));
-        assertTrue(Files.isRegularFile(path), () -> "descriptor not found: " + path);
+        assertThat(Files.isRegularFile(path)).as(() -> "descriptor not found: " + path).isTrue();
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(false);
         return factory.newDocumentBuilder().parse(path.toFile());
@@ -113,15 +108,17 @@ class MavenPluginDescriptorTest {
         for (String fileName : List.of("ApplyMojo.java", "CheckMojo.java")) {
             String source = Files.readString(SOURCES.resolve(fileName), StandardCharsets.UTF_8);
             Matcher matcher = MOJO.matcher(source);
-            assertTrue(matcher.find(), () -> fileName + " has no @Mojo annotation");
+            assertThat(matcher.find()).as(() -> fileName + " has no @Mojo annotation").isTrue();
             Map<String, String> values = attributes(matcher.group(1));
             mojos.add(
-                    new MojoSource(
-                            values.get("name"),
-                            constantToId(values.get("defaultPhase")),
-                            constantToId(values.getOrDefault("requiresDependencyResolution", "ResolutionScope.NONE")),
-                            values.getOrDefault("threadSafe", "false"),
-                            "zone.rong.clearskies.maven." + fileName.replace(".java", "")));
+                new MojoSource(
+                    values.get("name"),
+                    constantToId(values.get("defaultPhase")),
+                    constantToId(values.getOrDefault("requiresDependencyResolution", "ResolutionScope.NONE")),
+                    values.getOrDefault("threadSafe", "false"),
+                    "zone.rong.clearskies.maven." + fileName.replace(".java", "")
+                )
+            );
         }
         return mojos;
     }
@@ -132,13 +129,9 @@ class MavenPluginDescriptorTest {
         Matcher matcher = PARAMETER.matcher(source);
         while (matcher.find()) {
             Map<String, String> values = attributes(matcher.group(1) == null ? "" : matcher.group(1));
-            parameters.add(
-                    new ParameterSource(
-                            matcher.group(2),
-                            values.getOrDefault("property", ""),
-                            values.getOrDefault("defaultValue", "")));
+            parameters.add(new ParameterSource(matcher.group(2), values.getOrDefault("property", ""), values.getOrDefault("defaultValue", "")));
         }
-        assertTrue(parameters.size() > 4, () -> "found only " + parameters.size() + " parameters in the mojo source");
+        assertThat(parameters.size() > 4).as(() -> "found only " + parameters.size() + " parameters in the mojo source").isTrue();
         return parameters;
     }
 
@@ -147,11 +140,11 @@ class MavenPluginDescriptorTest {
         Document document = descriptor();
         for (MojoSource mojo : mojoSources()) {
             Element declared = mojoElement(document, mojo.goal());
-            assertNotNull(declared, () -> "descriptor has no goal named " + mojo.goal());
-            assertEquals(mojo.implementation(), text(declared, "implementation"));
-            assertEquals(mojo.phase(), text(declared, "phase"));
-            assertEquals(mojo.threadSafe(), text(declared, "threadSafe"));
-            assertEquals(mojo.resolution(), text(declared, "requiresDependencyResolution"));
+            assertThat(declared).as(() -> "descriptor has no goal named " + mojo.goal()).isNotNull();
+            assertThat(text(declared, "implementation")).isEqualTo(mojo.implementation());
+            assertThat(text(declared, "phase")).isEqualTo(mojo.phase());
+            assertThat(text(declared, "threadSafe")).isEqualTo(mojo.threadSafe());
+            assertThat(text(declared, "requiresDependencyResolution")).isEqualTo(mojo.resolution());
         }
     }
 
@@ -167,7 +160,7 @@ class MavenPluginDescriptorTest {
             for (Element parameter : elements(elements(declared, "parameters").getFirst(), "parameter")) {
                 names.add(text(parameter, "name"));
             }
-            assertEquals(annotated, names, () -> "parameters drifted for goal " + mojo.goal());
+            assertThat(names).as(() -> "parameters drifted for goal " + mojo.goal()).isEqualTo(annotated);
         }
     }
 
@@ -178,19 +171,17 @@ class MavenPluginDescriptorTest {
             Element configuration = elements(mojoElement(document, mojo.goal()), "configuration").getFirst();
             for (ParameterSource parameter : parameterSources()) {
                 List<Element> wiring = elements(configuration, parameter.name());
-                assertEquals(1, wiring.size(), () -> parameter.name() + " is not wired exactly once");
+                assertThat(wiring.size()).as(() -> parameter.name() + " is not wired exactly once").isEqualTo(1);
                 Element element = wiring.getFirst();
                 if (!parameter.defaultValue().isEmpty()) {
-                    assertEquals(
-                            parameter.defaultValue(),
-                            element.getAttribute("default-value"),
-                            () -> parameter.name() + " has a different default in the descriptor");
+                    assertThat(element.getAttribute("default-value"))
+                        .as(() -> parameter.name() + " has a different default in the descriptor")
+                        .isEqualTo(parameter.defaultValue());
                 }
                 if (!parameter.property().isEmpty()) {
-                    assertEquals(
-                            "${" + parameter.property() + "}",
-                            element.getTextContent().trim(),
-                            () -> parameter.name() + " has a different property in the descriptor");
+                    assertThat(element.getTextContent().trim())
+                        .as(() -> parameter.name() + " has a different property in the descriptor")
+                        .isEqualTo("${" + parameter.property() + "}");
                 }
             }
         }
@@ -202,32 +193,31 @@ class MavenPluginDescriptorTest {
         for (MojoSource mojo : mojoSources()) {
             Element configuration = elements(mojoElement(document, mojo.goal()), "configuration").getFirst();
             Element project = elements(configuration, "project").getFirst();
-            assertEquals("${project}", project.getAttribute("default-value"));
+            assertThat(project.getAttribute("default-value")).isEqualTo("${project}");
         }
     }
 
     @Test
     void theGoalPrefixAndCoordinatesMatchTheDocumentedUsage() throws Exception {
         Document document = descriptor();
-        assertEquals("clearskies", text(document.getDocumentElement(), "goalPrefix"));
-        assertEquals("clearskies-maven-plugin", text(document.getDocumentElement(), "artifactId"));
-        assertEquals("zone.rong.clearskies", text(document.getDocumentElement(), "groupId"));
+        assertThat(text(document.getDocumentElement(), "goalPrefix")).isEqualTo("clearskies");
+        assertThat(text(document.getDocumentElement(), "artifactId")).isEqualTo("clearskies-maven-plugin");
+        assertThat(text(document.getDocumentElement(), "groupId")).isEqualTo("zone.rong.clearskies");
     }
 
     @Test
     void theDeclaredVersionMatchesTheBuild() throws Exception {
         Document document = descriptor();
-        assertEquals(
-                System.getProperty("clearskies.version"),
-                text(document.getDocumentElement(), "version"),
-                "the processed plugin.xml version must match the build");
+        assertThat(text(document.getDocumentElement(), "version"))
+            .as("the processed plugin.xml version must match the build")
+            .isEqualTo(System.getProperty("clearskies.version"));
     }
 
     @Test
     void bothGoalsExistAndBindToTheExpectedPhases() throws Exception {
         Document document = descriptor();
-        assertEquals("process-sources", text(mojoElement(document, "apply"), "phase"));
-        assertEquals("verify", text(mojoElement(document, "check"), "phase"));
+        assertThat(text(mojoElement(document, "apply"), "phase")).isEqualTo("process-sources");
+        assertThat(text(mojoElement(document, "check"), "phase")).isEqualTo("verify");
     }
 
 }

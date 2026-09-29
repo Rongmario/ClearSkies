@@ -1,31 +1,34 @@
+/*
+ * Copyright (c) 2026 CleanroomMC contributors
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
 package zone.rong.clearskies.cli;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class UnifiedDiffTest {
 
     @Test
     void identicalTextsProduceNoDiff() {
-        assertEquals("", UnifiedDiff.between("Foo.java", "class A {}\n", "class A {}\n"));
+        assertThat(UnifiedDiff.between("Foo.java", "class A {}\n", "class A {}\n")).isEqualTo("");
     }
 
     @Test
     void aChangedLineShowsInTheHunk() {
         String diff = UnifiedDiff.between("Foo.java", "import java.util.*;\n", "import java.util.List;\n");
-        assertTrue(diff.contains("--- Foo.java"), diff);
-        assertTrue(diff.contains("-import java.util.*;"), diff);
-        assertTrue(diff.contains("+import java.util.List;"), diff);
+        assertThat(diff.contains("--- Foo.java")).as(diff).isTrue();
+        assertThat(diff.contains("-import java.util.*;")).as(diff).isTrue();
+        assertThat(diff.contains("+import java.util.List;")).as(diff).isTrue();
     }
 
     @Test
     void missingTerminalNewlineIsReported() {
         String diff = UnifiedDiff.between("Foo.java", "class A {}\n", "class A {}");
-        assertTrue(diff.contains("class A {}"), diff);
-        assertTrue(diff.contains("\\ No newline at end of file"), diff);
+        assertThat(diff.contains("class A {}")).as(diff).isTrue();
+        assertThat(diff.contains("\\ No newline at end of file")).as(diff).isTrue();
     }
 
     @Test
@@ -41,9 +44,9 @@ class UnifiedDiffTest {
         before.append("    List x;\n}\n");
         after.append("    List x;\n}\n");
         String diff = UnifiedDiff.between("Large.java", before.toString(), after.toString());
-        assertTrue(diff.contains("-import java.util.*;"), diff);
-        assertTrue(diff.contains("+import java.util.List;"), diff);
-        assertFalse(diff.contains("-    int f0;"), diff);
+        assertThat(diff.contains("-import java.util.*;")).as(diff).isTrue();
+        assertThat(diff.contains("+import java.util.List;")).as(diff).isTrue();
+        assertThat(diff.contains("-    int f0;")).as(diff).isFalse();
     }
 
 }
