@@ -2,76 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - 'develop/**'
   pull_request:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    types: [opened, synchronize, reopened, ready_for_review, review_requested]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        java: [21, 25]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
-        with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-
-      - name: Test
-        run: ./gradlew check
-
-  build-tool-compatibility:
-    name: ${{ matrix.tool }} ${{ matrix.version }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tool: Gradle
-            version: 8.5
-            task: :gradle-plugin:test
-            property: clearskies.gradle.test.version
-          - tool: Gradle
-            version: 9.7.0
-            task: :gradle-plugin:test
-            property: clearskies.gradle.test.version
-          - tool: Maven
-            version: 3.9.0
-            task: :maven-plugin:test
-            property: clearskies.maven.test.version
-          - tool: Maven
-            version: 3.9.16
-            task: :maven-plugin:test
-            property: clearskies.maven.test.version
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-
-      - name: Test ${{ matrix.tool }} ${{ matrix.version }}
-        run: >-
-          ./gradlew ${{ matrix.task }}
-          -P${{ matrix.property }}=${{ matrix.version }}
+  build:
+    uses: CleanroomMC/Conventions/.github/workflows/build.yml@1.1.8
