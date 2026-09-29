@@ -211,7 +211,7 @@ final class DefaultStarExpander implements StarExpander {
             assigned.put(star, new LinkedHashSet<>());
         }
 
-        assign(uses.used, trees, unit, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+        assign(uses.used, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
         assignUnresolved(uses.unresolved, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
 
         boolean unresolved = hasUnresolvedSymbols(collector);
@@ -360,8 +360,6 @@ final class DefaultStarExpander implements StarExpander {
 
     private static void assign(
         Set<Element> used,
-        Trees trees,
-        CompilationUnitTree unit,
         String packageName,
         Set<String> singleTypeSimpleNames,
         Set<String> singleStaticSimpleNames,
@@ -371,7 +369,7 @@ final class DefaultStarExpander implements StarExpander {
         List<Diagnostic> diagnostics
     ) {
         for (Element element : used) {
-            recordUse(element, trees, unit, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+            recordUse(element, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
         }
     }
 
@@ -400,7 +398,7 @@ final class DefaultStarExpander implements StarExpander {
             }
             owners = uniqueOwners(owners);
             if (owners.size() == 1) {
-                recordUse(members.get(0), null, null, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+                recordUse(members.get(0), packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
             } else if (owners.size() > 1) {
                 frozen.addAll(owners);
                 diagnostics.add(
@@ -412,8 +410,6 @@ final class DefaultStarExpander implements StarExpander {
 
     private static void recordUse(
         Element element,
-        Trees trees,
-        CompilationUnitTree unit,
         String packageName,
         Set<String> singleTypeSimpleNames,
         Set<String> singleStaticSimpleNames,
@@ -422,9 +418,6 @@ final class DefaultStarExpander implements StarExpander {
         Set<StarImport> frozen,
         List<Diagnostic> diagnostics
     ) {
-        if (trees != null && unit != null && declaredIn(trees, unit, element)) {
-            return;
-        }
         String simple = element.getSimpleName().toString();
         if (element instanceof TypeElement type) {
             if (isJavaLangTopLevel(type) || isTopLevelIn(type, packageName) || singleTypeSimpleNames.contains(simple)) {
@@ -462,11 +455,6 @@ final class DefaultStarExpander implements StarExpander {
             }
         }
         return unique;
-    }
-
-    private static boolean declaredIn(Trees trees, CompilationUnitTree unit, Element element) {
-        TreePath path = trees.getPath(element);
-        return path != null && path.getCompilationUnit() == unit;
     }
 
     private static boolean isStaticImportable(Element element) {
@@ -663,14 +651,39 @@ final class DefaultStarExpander implements StarExpander {
                 if (type.asType().getKind() == TypeKind.ERROR) {
                     unresolved.add(node.getName().toString());
                 } else {
-                    used.add(type);
+                    use(type);
                 }
             } else if (element != null && element.getSimpleName().contentEquals(node.getName()) && isStaticImportable(element)) {
-                used.add(element);
+                use(element);
             } else if (element == null || looksLikeTypeName(node.getName().toString())) {
                 unresolved.add(node.getName().toString());
             }
             return super.visitIdentifier(node, unused);
+        }
+
+        private void use(Element element) {
+            if (!isInScopeWithoutImport(element)) {
+                used.add(element);
+            }
+        }
+
+        // A member is in scope without an import only inside the body of its declaring class, not in its header or in other classes of the file.
+        private boolean isInScopeWithoutImport(Element element) {
+            TreePath declaration = trees.getPath(element);
+            if (declaration == null || declaration.getCompilationUnit() != getCurrentPath().getCompilationUnit()) {
+                return false;
+            }
+            if (!(element.getEnclosingElement() instanceof TypeElement owner)) {
+                return true;
+            }
+            TreePath child = getCurrentPath();
+            for (TreePath path = child.getParentPath(); path != null; path = path.getParentPath()) {
+                if (path.getLeaf() instanceof ClassTree tree && tree.getMembers().contains(child.getLeaf()) && owner.equals(trees.getElement(path))) {
+                    return true;
+                }
+                child = path;
+            }
+            return false;
         }
 
         private void scanDoc() {
@@ -725,11 +738,11 @@ final class DefaultStarExpander implements StarExpander {
             public Void visitReference(ReferenceTree node, Void unused) {
                 Element element = docTrees.getElement(getCurrentPath());
                 if (element instanceof TypeElement type && isNamedType(type)) {
-                    used.add(type);
+                    use(type);
                 } else if (element instanceof ExecutableElement executable && executable.getEnclosingElement() instanceof TypeElement type) {
-                    used.add(type);
+                    use(type);
                 } else if (element instanceof VariableElement variable && variable.getEnclosingElement() instanceof TypeElement type) {
-                    used.add(type);
+                    use(type);
                 } else {
                     String signature = node.getSignature();
                     if (signature != null) {

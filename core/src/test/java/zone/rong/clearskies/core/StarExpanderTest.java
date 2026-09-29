@@ -149,6 +149,31 @@ class StarExpanderTest {
     }
 
     @Test
+    void expandsStarOfAClassDeclaredInTheSameFileWhenTheHeaderUsesItsMember() {
+        String source = """
+                package sample;
+
+                import sample.Sample.*;
+
+                class Sample extends java.util.ArrayList<Inner> {
+                    static class Inner {}
+                }
+                """;
+        String expected = """
+                package sample;
+
+                import sample.Sample.Inner;
+
+                class Sample extends java.util.ArrayList<Inner> {
+                    static class Inner {}
+                }
+                """;
+        ExpandResult result = expand(source);
+        assertThat(result.hasErrors()).as(result.diagnostics().toString()).isFalse();
+        assertThat(result.text()).isEqualTo(expected);
+    }
+
+    @Test
     void doesNotReemitAStaticMemberAlreadyImportedExplicitly() {
         String source = """
                 package sample;
