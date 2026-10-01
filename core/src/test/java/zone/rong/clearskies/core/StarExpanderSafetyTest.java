@@ -84,6 +84,24 @@ class StarExpanderSafetyTest {
     }
 
     @Test
+    void classpathWildcardSkipsZipFilesAsJavacDoes(@TempDir Path temp) throws Exception {
+        Path lib = temp.resolve("lib");
+        Files.createDirectories(lib);
+        compileJar(temp, lib.resolve("foo.zip"), "foo", "Bar", "public class Bar {}");
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.of(List.of(lib.resolve("*")))).build();
+        String source = """
+                package sample;
+
+                import foo.*;
+
+                class Sample { Bar x; }
+                """;
+        ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
+        assertThat(result.outcome()).as(result.diagnostics().toString()).isEqualTo(ExpandResult.Outcome.INCOMPLETE);
+        assertThat(result.text()).isEqualTo(source);
+    }
+
+    @Test
     void missingClasspathEntryFailsClosed(@TempDir Path temp) {
         Path missing = temp.resolve("no-such.jar");
         StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.of(List.of(missing))).build();

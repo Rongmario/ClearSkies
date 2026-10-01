@@ -7,8 +7,10 @@ package zone.rong.clearskies.cli;
 
 import zone.rong.clearskies.api.LanguageLevel;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +28,8 @@ public record CliOptions(
     List<Path> sourcePath,
     List<String> includes,
     List<String> excludes,
+    List<String> keep,
+    boolean expandStaticImports,
     LanguageLevel languageLevel,
     Charset encoding,
     boolean readStdin,
@@ -63,7 +67,8 @@ public record CliOptions(
 
     }
 
-    public static CliOptions parse(String[] arguments) {
+    public static CliOptions parse(String[] rawArguments) {
+        String[] arguments = expandArgumentFiles(rawArguments);
         Mode mode = Mode.CHECK;
         boolean modeGiven = false;
         List<Path> paths = new ArrayList<>();
@@ -71,6 +76,8 @@ public record CliOptions(
         List<Path> sourcePath = new ArrayList<>();
         List<String> includes = new ArrayList<>();
         List<String> excludes = new ArrayList<>();
+        List<String> keep = new ArrayList<>();
+        boolean expandStaticImports = true;
         LanguageLevel languageLevel = LanguageLevel.ofRuntime();
         Charset encoding = StandardCharsets.UTF_8;
         boolean readStdin = false;
@@ -103,6 +110,8 @@ public record CliOptions(
                 case "--source-path" -> sourcePath.addAll(splitPaths(value(arguments, ++i, "--source-path")));
                 case "--include" -> includes.add(value(arguments, ++i, "--include"));
                 case "--exclude" -> excludes.add(value(arguments, ++i, "--exclude"));
+                case "--keep" -> keep.add(value(arguments, ++i, "--keep"));
+                case "--no-static" -> expandStaticImports = false;
                 case "--release", "--language-level" -> languageLevel = LanguageLevel.ofRelease(intValue(arguments, ++i, "--release"));
                 case "--encoding" -> encoding = Charset.forName(value(arguments, ++i, "--encoding"));
                 case "--stdin" -> readStdin = true;
@@ -134,6 +143,8 @@ public record CliOptions(
             List.copyOf(sourcePath),
             List.copyOf(includes),
             List.copyOf(excludes),
+            List.copyOf(keep),
+            expandStaticImports,
             languageLevel,
             encoding,
             readStdin,
@@ -151,6 +162,8 @@ public record CliOptions(
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
+            true,
             LanguageLevel.ofRuntime(),
             StandardCharsets.UTF_8,
             false,
@@ -158,6 +171,54 @@ public record CliOptions(
             1,
             false
         );
+    }
+
+    /**
+     * Replaces each {@code @file} argument with the arguments in that file. They are separated by
+     * whitespace, and double quotes keep a value with spaces together. Long classpaths
+     * need this because they exceed the operating system's command-line limit.
+     */
+    private static String[] expandArgumentFiles(String[] arguments) {
+        List<String> expanded = new ArrayList<>();
+        for (String argument : arguments) {
+            if (!argument.startsWith("@") || argument.length() == 1) {
+                expanded.add(argument);
+                continue;
+            }
+            Path file = Path.of(argument.substring(1));
+            String content;
+            try {
+                content = Files.readString(file);
+            } catch (IOException e) {
+                throw new CliException("cannot read argument file " + file + ": " + e.getMessage());
+            }
+            StringBuilder current = new StringBuilder();
+            boolean quoted = false;
+            boolean inToken = false;
+            for (int i = 0; i < content.length(); i++) {
+                char c = content.charAt(i);
+                if (c == '"') {
+                    quoted = !quoted;
+                    inToken = true;
+                } else if (!quoted && Character.isWhitespace(c)) {
+                    if (inToken) {
+                        expanded.add(current.toString());
+                        current.setLength(0);
+                        inToken = false;
+                    }
+                } else {
+                    current.append(c);
+                    inToken = true;
+                }
+            }
+            if (quoted) {
+                throw new CliException("unterminated quote in argument file " + file);
+            }
+            if (inToken) {
+                expanded.add(current.toString());
+            }
+        }
+        return expanded.toArray(String[]::new);
     }
 
     private static List<Path> splitPaths(String raw) {
@@ -194,6 +255,7 @@ public record CliOptions(
                 USAGE
                   clearskies [options] <path>...
                   clearskies --stdin [--stdin-name Foo.java] [options]
+                  clearskies @argfile [options]
 
                 MODES
                   -c, --check           report files that would change, exit 1 if any would (default)
@@ -207,6 +269,10 @@ public record CliOptions(
                       --source-path PATH extra source roots for same-tree types
                       --release N       javac --release, e.g. 21 (default: running JDK)
                       --encoding NAME   charset used to read and write files (default: UTF-8)
+
+                EXPANSION
+                      --keep NAME       leave NAME.* alone, e.g. org.lwjgl.opengl, repeatable
+                      --no-static       leave import static ….* alone
 
                 FILES
                       --include GLOB    only expand paths matching this glob, repeatable
@@ -224,7 +290,10 @@ public record CliOptions(
                   2  an error occurred
 
                 Directory arguments are walked for *.java and are also used as source roots.
-                import static ….* is left untouched.
+                --include and --exclude match paths relative to the working directory, or to the
+                directory argument a file was found under.
+                @FILE reads further arguments from FILE, separated by whitespace. Double quotes keep
+                a value with spaces together.
                 """;
     }
 

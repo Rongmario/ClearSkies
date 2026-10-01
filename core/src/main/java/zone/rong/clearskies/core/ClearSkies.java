@@ -12,7 +12,10 @@ import zone.rong.clearskies.api.StarExpanderBuilder;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Entry point to the expander.
@@ -43,6 +46,8 @@ public final class ClearSkies {
         private ExpandClasspath classpath = ExpandClasspath.platformOnly();
         private LanguageLevel languageLevel = LanguageLevel.ofRuntime();
         private Charset encoding = StandardCharsets.UTF_8;
+        private Set<String> keep = Set.of();
+        private boolean expandStaticImports = true;
 
         @Override
         public StarExpanderBuilder classpath(ExpandClasspath classpath) {
@@ -63,8 +68,20 @@ public final class ClearSkies {
         }
 
         @Override
+        public StarExpanderBuilder keep(Collection<String> owners) {
+            this.keep = owners.stream().map(owner -> owner.endsWith(".*") ? owner.substring(0, owner.length() - 2) : owner).collect(Collectors.toUnmodifiableSet());
+            return this;
+        }
+
+        @Override
+        public StarExpanderBuilder expandStaticImports(boolean expandStaticImports) {
+            this.expandStaticImports = expandStaticImports;
+            return this;
+        }
+
+        @Override
         public StarExpander build() {
-            return new DefaultStarExpander(classpath, languageLevel, encoding);
+            return new DefaultStarExpander(classpath, languageLevel, encoding, keep, expandStaticImports);
         }
 
     }

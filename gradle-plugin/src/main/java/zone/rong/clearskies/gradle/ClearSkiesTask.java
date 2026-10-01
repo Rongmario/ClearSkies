@@ -18,6 +18,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Nested;
@@ -47,6 +48,14 @@ public abstract class ClearSkiesTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getCheckOnly();
 
+    /** Owners whose star imports are left alone. */
+    @Input
+    public abstract SetProperty<String> getKeep();
+
+    /** Whether static star imports are expanded too. */
+    @Input
+    public abstract Property<Boolean> getExpandStaticImports();
+
     /**
      * A marker written when the task completes.
      *
@@ -73,8 +82,10 @@ public abstract class ClearSkiesTask extends DefaultTask {
                 for (Diagnostic diagnostic : result.diagnostics()) {
                     if (result.outcome() == ExpandResult.Outcome.FAILED) {
                         failures.add(diagnostic.format(file.getPath()));
-                    } else {
+                    } else if (diagnostic.severity() == Diagnostic.Severity.INFO) {
                         getLogger().info("{}", diagnostic.format(file.getPath()));
+                    } else {
+                        getLogger().warn("{}", diagnostic.format(file.getPath()));
                     }
                 }
                 switch (result.outcome()) {
@@ -126,6 +137,8 @@ public abstract class ClearSkiesTask extends DefaultTask {
             .classpath(ExpandClasspath.of(classpath).withSourceRoots(sourceRoots))
             .languageLevel(target.getLanguageLevel().get())
             .encoding(charset)
+            .keep(getKeep().get())
+            .expandStaticImports(getExpandStaticImports().get())
             .build();
     }
 

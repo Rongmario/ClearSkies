@@ -190,7 +190,77 @@ class CliRunnerTest {
         assertThat(Files.readString(source).contains("import java.util.*;")).isTrue();
     }
 
+    @Test
+    void standardInputWithNothingToExpandEchoesTheSource() {
+        String source = "import java.util.List;\n\nclass Sample { List x; }\n";
+        Run run = run(new String[] { "--stdin" }, source.getBytes(StandardCharsets.UTF_8));
+        assertThat(run.exit).as(run.err).isEqualTo(0);
+        assertThat(run.out).isEqualTo(source);
+    }
+
+    @Test
+    void standardInputWithUnresolvedTypesEchoesTheSource() {
+        String source = "import java.util.*;\n\nclass Sample { Missing x; }\n";
+        Run run = run(new String[] { "--stdin" }, source.getBytes(StandardCharsets.UTF_8));
+        assertThat(run.exit).as(run.err).isEqualTo(0);
+        assertThat(run.out).isEqualTo(source);
+    }
+
+    @Test
+    void checkReportsPathsRelativeToTheWorkingDirectory() throws Exception {
+        Path directory = Files.createDirectories(Path.of("build", "tmp", "relativeCheck"));
+        Path source = directory.resolve("Sample.java");
+        Files.writeString(source, "import java.util.*;\n\nclass Sample { List x; }\n", StandardCharsets.UTF_8);
+        Run check = run(new String[] { "--check", directory.toString() });
+        assertThat(check.exit).as(check.err).isEqualTo(1);
+        assertThat(check.out.strip()).isEqualTo(source.toString());
+    }
+
+    @Test
+    void standardInputInTheWrongEncodingFailsInsteadOfReplacingBytes() {
+        byte[] latin1 = "import java.util.*;\nclass Sample { List x; String s = \"café\"; }\n".getBytes(StandardCharsets.ISO_8859_1);
+        Run run = run(new String[] { "--stdin" }, latin1);
+        assertThat(run.exit).isEqualTo(2);
+        assertThat(run.out).isEmpty();
+        assertThat(run.err).contains("not valid UTF-8");
+    }
+
+    @Test
+    void patternsThatMatchNothingAreAnError(@TempDir Path temp) throws Exception {
+        Files.writeString(temp.resolve("Sample.java"), "class Sample {}\n", StandardCharsets.UTF_8);
+        Run check = run(new String[] { "--check", "--include", "nope/**", temp.toString() });
+        assertThat(check.exit).isEqualTo(2);
+        assertThat(check.err).contains("no Java sources matched");
+    }
+
+    @Test
+    void argumentFileSuppliesOptionsAndKeepLeavesAStarAlone(@TempDir Path temp) throws Exception {
+        Path source = temp.resolve("Sample.java");
+        String original = """
+            package sample;
+
+            import java.util.*;
+            import java.util.concurrent.*;
+            import static java.lang.Math.*;
+
+            class Sample { List x; Callable<Integer> c = () -> abs(-1); }
+            """;
+        Files.writeString(source, original, StandardCharsets.UTF_8);
+        Path arguments = temp.resolve("args");
+        Files.writeString(arguments, "--write\n--keep java.util.concurrent\n--no-static\n\"" + source + "\"\n", StandardCharsets.UTF_8);
+
+        Run write = run(new String[] { "@" + arguments });
+        assertThat(write.exit).as(write.err).isEqualTo(0);
+        assertThat(Files.readString(source, StandardCharsets.UTF_8)).isEqualTo(original.replace("import java.util.*;", "import java.util.List;"));
+        Run check = run(new String[] { "--check", "--keep", "java.util.concurrent", "--no-static", source.toString() });
+        assertThat(check.exit).as(check.err + check.out).isEqualTo(0);
+    }
+
     private static Run run(String[] arguments) {
+        return run(arguments, new byte[0]);
+    }
+
+    private static Run run(String[] arguments, byte[] input) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         CliOptions options = CliOptions.parse(arguments);
@@ -198,7 +268,7 @@ class CliRunnerTest {
             options,
             new PrintStream(out, true, StandardCharsets.UTF_8),
             new PrintStream(err, true, StandardCharsets.UTF_8),
-            new ByteArrayInputStream(new byte[0])
+            new ByteArrayInputStream(input)
         ).run();
         return new Run(exit, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
     }

@@ -269,6 +269,64 @@ class ClearSkiesPluginFunctionalTest {
     }
 
     @Test
+    void generatedSourcesUnderTheBuildDirectoryAreLeftAlone() throws IOException {
+        Files.writeString(
+            projectDirectory.resolve("build.gradle.kts"),
+            """
+                plugins {
+                    java
+                    id("zone.rong.clearskies")
+                }
+
+                sourceSets.main {
+                    java.srcDir(layout.buildDirectory.dir("generated/sources/fixture"))
+                }
+                """
+        );
+        Files.writeString(
+            projectDirectory.resolve("src/main/java/sample/Sample.java"),
+            """
+                package sample;
+
+                import java.util.List;
+
+                class Sample { List x; Generated g; }
+                """
+        );
+        Path generated = Files.createDirectories(projectDirectory.resolve("build/generated/sources/fixture/sample"));
+        String starred = """
+                package sample;
+
+                import java.util.*;
+
+                class Generated { List x; }
+                """;
+        Files.writeString(generated.resolve("Generated.java"), starred);
+
+        BuildResult check = run("clearSkiesCheck");
+        assertThat(check.task(":clearSkiesCheck").getOutcome()).isEqualTo(TaskOutcome.SUCCESS);
+        run("clearSkiesApply");
+        assertThat(Files.readString(generated.resolve("Generated.java"))).isEqualTo(starred);
+    }
+
+    @Test
+    void incompleteAttributionIsReportedAsAWarning() throws IOException {
+        Files.writeString(
+            projectDirectory.resolve("src/main/java/sample/Sample.java"),
+            """
+                package sample;
+
+                import java.util.*;
+
+                class Sample { Missing x; }
+                """
+        );
+
+        BuildResult apply = run("clearSkiesApply");
+        assertThat(apply.getOutput()).contains("because the file has unresolved types");
+    }
+
+    @Test
     void applyDoesNotDragInTestCompilation() {
         BuildResult result = run("clearSkiesApply", "--dry-run");
 

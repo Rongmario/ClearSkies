@@ -19,6 +19,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,7 @@ public class ClearSkiesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         ClearSkiesExtension extension = project.getExtensions().create(EXTENSION_NAME, ClearSkiesExtension.class);
         extension.getEnforceOnCheck().convention(true);
+        extension.getExpandStaticImports().convention(true);
 
         ObjectFactory objects = project.getObjects();
         Provider<List<SourceSetWork>> targets = project.provider(() -> sourceSetWork(project, extension, objects));
@@ -47,7 +49,7 @@ public class ClearSkiesPlugin implements Plugin<Project> {
         TaskProvider<ClearSkiesTask> apply = project.getTasks().register(APPLY_TASK_NAME, ClearSkiesTask.class, task -> {
             task.setGroup(TASK_GROUP);
             task.setDescription("Expands star imports in Java sources in place with ClearSkies.");
-            configure(task, targets);
+            configure(task, extension, targets);
             task.getCheckOnly().set(false);
             task.getMarkerFile().set(project.getLayout().getBuildDirectory().file("clearskies/apply.marker"));
             task.getOutputs().doNotCacheIf("the task rewrites its source inputs in place", ignored -> true);
@@ -57,7 +59,7 @@ public class ClearSkiesPlugin implements Plugin<Project> {
         TaskProvider<ClearSkiesTask> check = project.getTasks().register(CHECK_TASK_NAME, ClearSkiesTask.class, task -> {
             task.setGroup(TASK_GROUP);
             task.setDescription("Fails if any Java source still has expandable star imports.");
-            configure(task, targets);
+            configure(task, extension, targets);
             task.getCheckOnly().set(true);
             task.getMarkerFile().set(project.getLayout().getBuildDirectory().file("clearskies/check.marker"));
         });
@@ -73,8 +75,10 @@ public class ClearSkiesPlugin implements Plugin<Project> {
         check.configure(task -> task.mustRunAfter(apply));
     }
 
-    private static void configure(ClearSkiesTask task, Provider<List<SourceSetWork>> targets) {
+    private static void configure(ClearSkiesTask task, ClearSkiesExtension extension, Provider<List<SourceSetWork>> targets) {
         task.getTargets().addAll(targets);
+        task.getKeep().set(extension.getKeep());
+        task.getExpandStaticImports().set(extension.getExpandStaticImports());
     }
 
     private static List<SourceSetWork> sourceSetWork(Project project, ClearSkiesExtension extension, ObjectFactory objects) {
@@ -85,6 +89,9 @@ public class ClearSkiesPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = java.getSourceSets();
         List<String> selected = extension.getSourceSets().getOrElse(List.of());
         SourceSet main = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+        // Generated sources (ANTLR, protobuf, ...) are regenerated on the next build, so rewriting
+        // or checking them is pointless. They stay source roots so their types still resolve.
+        File buildDirectory = project.getLayout().getBuildDirectory().get().getAsFile();
         List<SourceSetWork> works = new ArrayList<>();
         for (SourceSet sourceSet : sourceSets) {
             if (!selected.isEmpty() && !selected.contains(sourceSet.getName())) {
@@ -95,7 +102,7 @@ public class ClearSkiesPlugin implements Plugin<Project> {
                 .from(
                     sourceSet.getAllJava()
                         .matching(patterns -> patterns.include(extension.getIncludes().get()).exclude(extension.getExcludes().get()))
-                        .filter(file -> file.getName().endsWith(".java"))
+                        .filter(file -> file.getName().endsWith(".java") && !file.toPath().startsWith(buildDirectory.toPath()))
                 );
             work.getClasspath().from(existing(sourceSet.getCompileClasspath()));
             work.getSourceRoots().from(existing(sourceSet.getAllJava().getSourceDirectories()));

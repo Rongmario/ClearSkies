@@ -49,6 +49,15 @@ public abstract class ClearSkiesExtension {
     /** Whether {@code check} depends on {@code clearSkiesCheck}. Defaults to true. */
     public abstract Property<Boolean> getEnforceOnCheck();
 
+    /**
+     * Owners whose star imports are left alone: a package such as {@code org.lwjgl.opengl}, or a
+     * type such as {@code org.junit.jupiter.api.Assertions}.
+     */
+    public abstract SetProperty<String> getKeep();
+
+    /** Whether {@code import static pkg.Type.*;} is expanded too. Defaults to true. */
+    public abstract Property<Boolean> getExpandStaticImports();
+
     /** Convenience for {@code sourceSets = listOf(...)}. */
     public void sourceSets(String... names) {
         getSourceSets().set(List.of(names));
@@ -62,6 +71,11 @@ public abstract class ClearSkiesExtension {
     /** Adds exclude patterns. */
     public void exclude(String... patterns) {
         getExcludes().addAll(patterns);
+    }
+
+    /** Adds owners whose star imports are left alone. */
+    public void keep(String... owners) {
+        getKeep().addAll(owners);
     }
 
 }

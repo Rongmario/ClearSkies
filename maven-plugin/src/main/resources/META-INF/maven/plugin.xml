@@ -61,6 +61,20 @@
           <description>Globs excluding files from expansion.</description>
         </parameter>
         <parameter>
+          <name>keep</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Owners whose star imports are left alone, such as org.lwjgl.opengl or org.junit.jupiter.api.Assertions.</description>
+        </parameter>
+        <parameter>
+          <name>expandStaticImports</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether static star imports are expanded too.</description>
+        </parameter>
+        <parameter>
           <name>includeTestSources</name>
           <type>boolean</type>
           <required>false</required>
@@ -94,6 +108,8 @@
         <mojoExecution implementation="org.apache.maven.plugin.MojoExecution" default-value="${mojoExecution}"/>
         <includes implementation="java.util.List"></includes>
         <excludes implementation="java.util.List"></excludes>
+        <keep implementation="java.util.List"></keep>
+        <expandStaticImports implementation="boolean" default-value="true">${clearskies.expandStaticImports}</expandStaticImports>
         <includeTestSources implementation="boolean" default-value="true">${clearskies.includeTestSources}</includeTestSources>
         <languageLevel implementation="java.lang.Integer">${clearskies.languageLevel}</languageLevel>
         <encoding implementation="java.lang.String" default-value="${project.build.sourceEncoding}">${clearskies.encoding}</encoding>
@@ -146,6 +162,20 @@
           <description>Globs excluding files from expansion.</description>
         </parameter>
         <parameter>
+          <name>keep</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Owners whose star imports are left alone, such as org.lwjgl.opengl or org.junit.jupiter.api.Assertions.</description>
+        </parameter>
+        <parameter>
+          <name>expandStaticImports</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether static star imports are expanded too.</description>
+        </parameter>
+        <parameter>
           <name>includeTestSources</name>
           <type>boolean</type>
           <required>false</required>
@@ -179,6 +209,8 @@
         <mojoExecution implementation="org.apache.maven.plugin.MojoExecution" default-value="${mojoExecution}"/>
         <includes implementation="java.util.List"></includes>
         <excludes implementation="java.util.List"></excludes>
+        <keep implementation="java.util.List"></keep>
+        <expandStaticImports implementation="boolean" default-value="true">${clearskies.expandStaticImports}</expandStaticImports>
         <includeTestSources implementation="boolean" default-value="true">${clearskies.includeTestSources}</includeTestSources>
         <languageLevel implementation="java.lang.Integer">${clearskies.languageLevel}</languageLevel>
         <encoding implementation="java.lang.String" default-value="${project.build.sourceEncoding}">${clearskies.encoding}</encoding>

@@ -5,6 +5,8 @@
 
 package zone.rong.clearskies.api;
 
+import zone.rong.clearskies.core.ClearSkies;
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -118,6 +120,8 @@ class ApiCompatibilityTest {
             if (types.size() < 6) {
                 throw new IllegalStateException("API source walk should find public types, found " + types.size());
             }
+            // The documented entry point lives with the implementation, but consumers call it directly.
+            types.add(ClearSkies.class);
             return types;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

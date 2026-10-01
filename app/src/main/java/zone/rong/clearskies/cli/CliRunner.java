@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,7 +69,15 @@ final class CliRunner {
     private int runStandardInput() {
         String source;
         try {
-            source = new String(in.readAllBytes(), options.encoding());
+            source = options.encoding()
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(in.readAllBytes()))
+                .toString();
+        } catch (CharacterCodingException e) {
+            err.println("clearskies: standard input is not valid " + options.encoding().name() + "; pass --encoding");
+            return ERROR;
         } catch (IOException e) {
             err.println("clearskies: cannot read standard input: " + e.getMessage());
             return ERROR;
@@ -86,7 +97,8 @@ final class CliRunner {
         }
         if (files.isEmpty()) {
             err.println("clearskies: no Java sources matched");
-            return SUCCESS;
+            // Patterns that match nothing are almost always a typo, and passing would hide it in CI.
+            return options.includes().isEmpty() && options.excludes().isEmpty() ? SUCCESS : ERROR;
         }
 
         StarExpander expander = expander(sourceRootsFor(files));
@@ -127,6 +139,10 @@ final class CliRunner {
         String source;
         try {
             source = Files.readString(file, options.encoding());
+        } catch (CharacterCodingException e) {
+            err.println("clearskies: " + file + " is not valid " + options.encoding().name() + "; pass --encoding");
+            failed.incrementAndGet();
+            return;
         } catch (IOException e) {
             err.println("clearskies: cannot read " + file + ": " + e.getMessage());
             failed.incrementAndGet();
@@ -152,6 +168,9 @@ final class CliRunner {
         return switch (result.outcome()) {
             case FAILED -> ERROR;
             case UNCHANGED -> {
+                if (!writeToDisk && options.mode() == CliOptions.Mode.WRITE) {
+                    out.print(source);
+                }
                 if (options.verbose()) {
                     out.println("unchanged " + name);
                 }
@@ -170,6 +189,9 @@ final class CliRunner {
         switch (options.mode()) {
             case WRITE -> {
                 if (result.isUnchanged()) {
+                    if (!writeToDisk) {
+                        out.print(source);
+                    }
                     return true;
                 }
                 if (writeToDisk) {
@@ -210,6 +232,8 @@ final class CliRunner {
             .classpath(ExpandClasspath.of(options.classpath()).withSourceRoots(roots))
             .languageLevel(options.languageLevel())
             .encoding(options.encoding())
+            .keep(options.keep())
+            .expandStaticImports(options.expandStaticImports())
             .build();
     }
 
@@ -237,23 +261,29 @@ final class CliRunner {
             }
             if (Files.isRegularFile(path)) {
                 Path normalized = path.toAbsolutePath().normalize();
-                if (PathGlobs.allowed(normalized, root, options.includes(), options.excludes())) {
-                    files.add(normalized);
+                if (PathGlobs.allowed(normalized, List.of(root), options.includes(), options.excludes())) {
+                    files.add(relativeToWorkingDirectory(normalized, root));
                 }
                 continue;
             }
+            List<Path> roots = List.of(root, path);
             try (var walk = Files.walk(path)) {
                 walk.filter(Files::isRegularFile)
                     .filter(candidate -> candidate.toString().endsWith(".java"))
                     .sorted()
                     .map(candidate -> candidate.toAbsolutePath().normalize())
-                    .filter(candidate -> PathGlobs.allowed(candidate, root, options.includes(), options.excludes()))
+                    .filter(candidate -> PathGlobs.allowed(candidate, roots, options.includes(), options.excludes()))
+                    .map(candidate -> relativeToWorkingDirectory(candidate, root))
                     .forEach(files::add);
             } catch (UncheckedIOException e) {
                 throw e.getCause();
             }
         }
         return List.copyOf(files);
+    }
+
+    private static Path relativeToWorkingDirectory(Path file, Path root) {
+        return file.startsWith(root) ? root.relativize(file) : file;
     }
 
     private static String version() {

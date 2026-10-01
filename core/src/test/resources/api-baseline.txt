@@ -98,4 +98,9 @@ TYPE public abstract interface zone.rong.clearskies.api.StarExpanderBuilder
   METHOD public abstract zone.rong.clearskies.api.StarExpander zone.rong.clearskies.api.StarExpanderBuilder.build()
   METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.classpath(zone.rong.clearskies.api.ExpandClasspath)
   METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.encoding(java.nio.charset.Charset)
+  METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.expandStaticImports(boolean)
+  METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.keep(java.util.Collection<java.lang.String>)
   METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.languageLevel(zone.rong.clearskies.api.LanguageLevel)
+TYPE public final class zone.rong.clearskies.core.ClearSkies
+  METHOD public static zone.rong.clearskies.api.StarExpander zone.rong.clearskies.core.ClearSkies.defaultExpander()
+  METHOD public static zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.core.ClearSkies.newExpander()

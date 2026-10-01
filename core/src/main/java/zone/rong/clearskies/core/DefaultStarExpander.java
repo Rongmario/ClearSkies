@@ -72,15 +72,19 @@ final class DefaultStarExpander implements StarExpander {
     private final ExpandClasspath classpath;
     private final LanguageLevel languageLevel;
     private final Charset encoding;
+    private final Set<String> keep;
+    private final boolean expandStaticImports;
     private final Object pathLock = new Object();
     private List<java.nio.file.Path> resolvedEntries;
     private List<java.nio.file.Path> resolvedRoots;
     private List<String> pathErrors;
 
-    DefaultStarExpander(ExpandClasspath classpath, LanguageLevel languageLevel, Charset encoding) {
+    DefaultStarExpander(ExpandClasspath classpath, LanguageLevel languageLevel, Charset encoding, Set<String> keep, boolean expandStaticImports) {
         this.classpath = classpath;
         this.languageLevel = languageLevel;
         this.encoding = encoding;
+        this.keep = keep;
+        this.expandStaticImports = expandStaticImports;
     }
 
     @Override
@@ -221,6 +225,9 @@ final class DefaultStarExpander implements StarExpander {
         List<StarImport> bottomUp = new ArrayList<>(stars);
         bottomUp.sort(Comparator.comparingInt((StarImport star) -> star.span.start).reversed());
         for (StarImport star : bottomUp) {
+            if (keep.contains(star.ownerName) || star.staticImport && !expandStaticImports) {
+                continue;
+            }
             if (frozen.contains(star)) {
                 incomplete = true;
                 continue;

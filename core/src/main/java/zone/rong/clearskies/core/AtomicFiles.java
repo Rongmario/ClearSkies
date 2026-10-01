@@ -11,6 +11,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 
 /**
  * Writes a file by replacing it with a sibling temp, using an atomic move when the filesystem
@@ -21,7 +22,8 @@ public final class AtomicFiles {
     private AtomicFiles() { }
 
     public static void writeString(Path file, String text, Charset charset) throws IOException {
-        Path target = file.toAbsolutePath().normalize();
+        // Replacing a symlink would detach it from the file it points at, so write the real file.
+        Path target = Files.exists(file) ? file.toRealPath() : file.toAbsolutePath().normalize();
         Path parent = target.getParent();
         if (parent == null) {
             throw new IOException("cannot write " + file + " without a parent directory");
@@ -30,6 +32,10 @@ public final class AtomicFiles {
         Path temp = Files.createTempFile(parent, target.getFileName().toString() + ".", ".tmp");
         try {
             Files.writeString(temp, text, charset);
+            // The temp file is created owner-only, and the move would carry that onto the target.
+            if (Files.exists(target) && Files.getFileAttributeView(target, PosixFileAttributeView.class) != null) {
+                Files.setPosixFilePermissions(temp, Files.getPosixFilePermissions(target));
+            }
             try {
                 Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {

@@ -12,14 +12,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Include/exclude globs matched against documented root-relative paths (slash-separated).
+ * Include/exclude globs matched against a file's path relative to each given root that contains
+ * it, slash-separated. A file outside every root matches no pattern.
  */
 public final class PathGlobs {
 
     private PathGlobs() { }
 
-    public static boolean allowed(Path file, Path root, List<String> includes, List<String> excludes) {
-        List<String> candidates = candidates(file, root);
+    public static boolean allowed(Path file, List<Path> roots, List<String> includes, List<String> excludes) {
+        List<String> candidates = candidates(file, roots);
         for (String exclude : excludes) {
             if (anyMatch(exclude, candidates)) {
                 return false;
@@ -36,29 +37,20 @@ public final class PathGlobs {
         return false;
     }
 
-    static List<String> candidates(Path file, Path root) {
-        List<String> candidates = new ArrayList<>();
+    static List<String> candidates(Path file, List<Path> roots) {
         Path absoluteFile = file.toAbsolutePath().normalize();
-        add(candidates, absoluteFile.toString().replace('\\', '/'));
-        add(candidates, file.getFileName() == null ? null : file.getFileName().toString());
-        if (root != null) {
+        List<String> candidates = new ArrayList<>();
+        for (Path root : roots) {
             Path absoluteRoot = root.toAbsolutePath().normalize();
-            if (absoluteFile.startsWith(absoluteRoot)) {
-                add(candidates, absoluteRoot.relativize(absoluteFile).toString().replace('\\', '/'));
+            if (!absoluteFile.startsWith(absoluteRoot)) {
+                continue;
+            }
+            String relative = absoluteRoot.relativize(absoluteFile).toString().replace('\\', '/');
+            if (!relative.isEmpty() && !candidates.contains(relative)) {
+                candidates.add(relative);
             }
         }
-        Path current = absoluteFile.getParent();
-        while (current != null) {
-            add(candidates, current.relativize(absoluteFile).toString().replace('\\', '/'));
-            current = current.getParent();
-        }
         return candidates;
-    }
-
-    private static void add(List<String> candidates, String value) {
-        if (value != null && !value.isEmpty() && !candidates.contains(value)) {
-            candidates.add(value);
-        }
     }
 
     private static boolean anyMatch(String glob, List<String> candidates) {

@@ -55,6 +55,14 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
     @Parameter
     protected List<String> excludes = new ArrayList<>();
 
+    /** Owners whose star imports are left alone, such as {@code org.lwjgl.opengl}. */
+    @Parameter
+    protected List<String> keep = new ArrayList<>();
+
+    /** Whether static star imports are expanded too. */
+    @Parameter(property = "clearskies.expandStaticImports", defaultValue = "true")
+    protected boolean expandStaticImports;
+
     /** Whether to expand test sources as well as main sources. */
     @Parameter(property = "clearskies.includeTestSources", defaultValue = "true")
     protected boolean includeTestSources;
@@ -143,7 +151,13 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
         if (files.isEmpty()) {
             return 0;
         }
-        StarExpander expander = ClearSkies.newExpander().classpath(classpath).languageLevel(level).encoding(charset).build();
+        StarExpander expander = ClearSkies.newExpander()
+            .classpath(classpath)
+            .languageLevel(level)
+            .encoding(charset)
+            .keep(keep)
+            .expandStaticImports(expandStaticImports)
+            .build();
         for (Path file : files) {
             String source;
             try {
@@ -155,8 +169,10 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
             for (Diagnostic diagnostic : result.diagnostics()) {
                 if (result.outcome() == ExpandResult.Outcome.FAILED) {
                     failures.add(diagnostic.format(file.toString()));
-                } else {
+                } else if (diagnostic.severity() == Diagnostic.Severity.INFO) {
                     getLog().debug(diagnostic.format(file.toString()));
+                } else {
+                    getLog().warn(diagnostic.format(file.toString()));
                 }
             }
             switch (result.outcome()) {
@@ -249,16 +265,21 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
 
     protected List<Path> sourceFiles(List<String> roots) throws MojoExecutionException {
         Path base = project.getBasedir() == null ? Path.of("").toAbsolutePath() : project.getBasedir().toPath();
+        Path buildDirectory = project.getBuild() == null || project.getBuild().getDirectory() == null
+            ? null
+            : Path.of(project.getBuild().getDirectory()).toAbsolutePath().normalize();
         List<Path> files = new ArrayList<>();
         for (String root : roots) {
             Path directory = Path.of(root);
-            if (!Files.isDirectory(directory)) {
+            // Generated sources are regenerated on the next build. They stay on the source path so
+            // their types still resolve, but are never rewritten or checked.
+            if (!Files.isDirectory(directory) || buildDirectory != null && directory.toAbsolutePath().normalize().startsWith(buildDirectory)) {
                 continue;
             }
             try (Stream<Path> walk = Files.walk(directory)) {
                 walk.filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> PathGlobs.allowed(path, base, includes, excludes))
+                    .filter(path -> PathGlobs.allowed(path, List.of(base), includes, excludes))
                     .sorted()
                     .forEach(files::add);
             } catch (IOException | UncheckedIOException e) {

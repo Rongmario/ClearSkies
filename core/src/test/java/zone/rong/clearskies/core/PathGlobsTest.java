@@ -20,8 +20,8 @@ class PathGlobsTest {
         Path file = temp.resolve("src/main/java/sample/Sample.java");
         java.nio.file.Files.createDirectories(file.getParent());
         java.nio.file.Files.writeString(file, "class Sample {}\n");
-        assertThat(PathGlobs.allowed(file, temp, List.of("src/main/java/**/*.java"), List.of())).isTrue();
-        assertThat(PathGlobs.allowed(file, temp, List.of("src/test/java/**/*.java"), List.of())).isFalse();
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of("src/main/java/**/*.java"), List.of())).isTrue();
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of("src/test/java/**/*.java"), List.of())).isFalse();
     }
 
     @Test
@@ -29,7 +29,22 @@ class PathGlobsTest {
         Path file = temp.resolve("src/main/java/sample/Sample.java");
         java.nio.file.Files.createDirectories(file.getParent());
         java.nio.file.Files.writeString(file, "class Sample {}\n");
-        assertThat(PathGlobs.allowed(file, temp, List.of("src/main/java/**/*.java"), List.of("**/Sample.java"))).isFalse();
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of("src/main/java/**/*.java"), List.of("**/Sample.java"))).isFalse();
+    }
+
+    @Test
+    void patternsDoNotMatchAnInnerSuffixOfThePath(@TempDir Path temp) {
+        Path file = temp.resolve("src/com/x/build/B.java");
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of(), List.of("build/**"))).isTrue();
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of("B.java"), List.of())).isFalse();
+        assertThat(PathGlobs.allowed(file, List.of(temp), List.of(), List.of("**/build/**"))).isFalse();
+    }
+
+    @Test
+    void aFileOutsideEveryRootMatchesNoPattern(@TempDir Path temp) {
+        Path file = temp.resolve("elsewhere/A.java");
+        assertThat(PathGlobs.allowed(file, List.of(temp.resolve("src")), List.of("**"), List.of())).isFalse();
+        assertThat(PathGlobs.allowed(file, List.of(temp.resolve("src")), List.of(), List.of("**"))).isTrue();
     }
 
 }

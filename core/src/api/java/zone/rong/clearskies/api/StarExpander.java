@@ -6,7 +6,7 @@
 package zone.rong.clearskies.api;
 
 /**
- * Expands non-static star imports in Java source text.
+ * Expands star imports in Java source text.
  *
  * <p>Implementations are immutable and safe to share across threads, so one expander can be reused
  * for a whole source set and handed to a thread pool. File-manager state stays inside the

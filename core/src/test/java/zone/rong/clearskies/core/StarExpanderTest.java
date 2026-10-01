@@ -35,6 +35,24 @@ class StarExpanderTest {
     }
 
     @Test
+    void keptOwnersAndStaticStarsCanBeLeftAlone() {
+        String source = """
+                package sample;
+
+                import java.util.*;
+                import java.util.concurrent.*;
+                import static java.lang.Math.*;
+
+                class Sample { List x; Callable<Integer> c = () -> abs(-1); }
+                """;
+        StarExpander expander = ClearSkies.newExpander().keep(List.of("java.util.concurrent.*")).expandStaticImports(false).build();
+        ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Sample.java"));
+
+        assertThat(result.outcome()).isEqualTo(ExpandResult.Outcome.EXPANDED);
+        assertThat(result.text()).isEqualTo(source.replace("import java.util.*;", "import java.util.List;"));
+    }
+
+    @Test
     void noStarsReturnsTheSameString() {
         String source = "package sample;\n\nimport java.util.List;\n\nclass Sample { List x; }\n";
         ExpandResult result = expand(source);

@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 /**
  * Resolves javac-style classpath entries.
  *
- * <p>{@code directory/*} expands to the sorted JAR and ZIP files in that directory. Missing
+ * <p>{@code directory/*} expands to the sorted JAR files in that directory, as javac does. Missing
  * explicit (non-wildcard) entries are errors rather than silent drops.
  */
 final class ClasspathEntries {
@@ -94,8 +94,7 @@ final class ClasspathEntries {
     }
 
     private static boolean isArchive(Path path) {
-        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return name.endsWith(".jar") || name.endsWith(".zip");
+        return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar");
     }
 
 }
