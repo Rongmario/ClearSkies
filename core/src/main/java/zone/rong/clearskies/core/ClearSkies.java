@@ -69,7 +69,9 @@ public final class ClearSkies {
 
         @Override
         public StarExpanderBuilder keep(Collection<String> owners) {
-            this.keep = owners.stream().map(owner -> owner.endsWith(".*") ? owner.substring(0, owner.length() - 2) : owner).collect(Collectors.toUnmodifiableSet());
+            this.keep = owners.stream()
+                .map(owner -> owner.endsWith(".*") ? owner.substring(0, owner.length() - 2) : owner)
+                .collect(Collectors.toUnmodifiableSet());
             return this;
         }
 
