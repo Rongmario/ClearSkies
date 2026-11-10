@@ -34,14 +34,7 @@ public final class UnifiedDiff {
         Split right = Split.of(after);
         List<String> body = diffLines(left.lines, right.lines);
         if (left.newlineAtEnd != right.newlineAtEnd && !body.isEmpty()) {
-            int last = body.size() - 1;
-            if (!right.newlineAtEnd && body.get(last).startsWith("+")) {
-                body.add(NO_NEWLINE);
-            } else if (!left.newlineAtEnd && body.get(last).startsWith("-")) {
-                body.add(NO_NEWLINE);
-            } else if (!left.newlineAtEnd || !right.newlineAtEnd) {
-                body.add(NO_NEWLINE);
-            }
+            body.add(NO_NEWLINE);
         }
 
         StringBuilder out = new StringBuilder();

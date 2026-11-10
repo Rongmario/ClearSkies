@@ -26,12 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ForkJoinPool;
 
 /** Runs one CLI invocation. Kept separate from {@link Main} so it can be tested without exiting. */
 final class CliRunner {
@@ -101,67 +96,55 @@ final class CliRunner {
             return options.includes().isEmpty() && options.excludes().isEmpty() ? SUCCESS : ERROR;
         }
 
-        StarExpander expander = expander(sourceRootsFor(files));
-        AtomicInteger changed = new AtomicInteger();
-        AtomicInteger failed = new AtomicInteger();
-        AtomicInteger incomplete = new AtomicInteger();
-        List<Future<?>> pending = new ArrayList<>(files.size());
-        try (ExecutorService pool = Executors.newFixedThreadPool(options.parallelism())) {
-            for (Path file : files) {
-                pending.add(pool.submit(() -> processFile(file, expander, changed, failed, incomplete)));
+        int changed = 0;
+        int failed = 0;
+        int incomplete = 0;
+        List<ExpandRequest> requests = new ArrayList<>(files.size());
+        for (Path file : files) {
+            try {
+                requests.add(ExpandRequest.of(Files.readString(file, options.encoding())).withName(file.toString()));
+            } catch (CharacterCodingException e) {
+                err.println("clearskies: " + file + " is not valid " + options.encoding().name() + "; pass --encoding");
+                failed++;
+            } catch (IOException e) {
+                err.println("clearskies: cannot read " + file + ": " + e.getMessage());
+                failed++;
             }
-            for (Future<?> future : pending) {
-                try {
-                    future.get();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return ERROR;
-                } catch (ExecutionException e) {
-                    err.println("clearskies: " + e.getCause().getMessage());
-                    failed.incrementAndGet();
+        }
+
+        StarExpander expander = expander(options.paths().stream().filter(Files::isDirectory).distinct().toList());
+        List<ExpandResult> results;
+        // The expander's parallel work runs in the pool that calls it, which is how --jobs bounds it.
+        try (ForkJoinPool pool = new ForkJoinPool(options.parallelism())) {
+            results = pool.submit(() -> expander.expandAll(requests)).join();
+        }
+        for (int i = 0; i < requests.size(); i++) {
+            ExpandRequest request = requests.get(i);
+            ExpandResult result = results.get(i);
+            reportDiagnostics(request.name(), result);
+            int code = finishOne(request.name(), request.source(), result, true);
+            if (code == ERROR) {
+                failed++;
+            } else if (result.outcome() == ExpandResult.Outcome.INCOMPLETE) {
+                incomplete++;
+                if (!result.isUnchanged()) {
+                    changed++;
                 }
+            } else if (code == WOULD_CHANGE || (options.mode() == CliOptions.Mode.WRITE && !result.isUnchanged())) {
+                changed++;
             }
         }
 
         if (options.verbose()) {
-            err.println("clearskies: " + files.size() + " files, " + changed.get() + " changed, " + failed.get() + " failed");
+            err.println("clearskies: " + files.size() + " files, " + changed + " changed, " + failed + " failed");
         }
-        if (failed.get() > 0) {
+        if (failed > 0) {
             return ERROR;
         }
-        if (options.mode() != CliOptions.Mode.WRITE && (changed.get() > 0 || incomplete.get() > 0)) {
+        if (options.mode() != CliOptions.Mode.WRITE && (changed > 0 || incomplete > 0)) {
             return WOULD_CHANGE;
         }
         return SUCCESS;
-    }
-
-    private void processFile(Path file, StarExpander expander, AtomicInteger changed, AtomicInteger failed, AtomicInteger incomplete) {
-        String source;
-        try {
-            source = Files.readString(file, options.encoding());
-        } catch (CharacterCodingException e) {
-            err.println("clearskies: " + file + " is not valid " + options.encoding().name() + "; pass --encoding");
-            failed.incrementAndGet();
-            return;
-        } catch (IOException e) {
-            err.println("clearskies: cannot read " + file + ": " + e.getMessage());
-            failed.incrementAndGet();
-            return;
-        }
-
-        ExpandResult result = expander.expand(ExpandRequest.of(source).withName(file.toString()));
-        reportDiagnostics(file.toString(), result);
-        int code = finishOne(file.toString(), source, result, true);
-        if (code == ERROR) {
-            failed.incrementAndGet();
-        } else if (result.outcome() == ExpandResult.Outcome.INCOMPLETE) {
-            incomplete.incrementAndGet();
-            if (!result.isUnchanged()) {
-                changed.incrementAndGet();
-            }
-        } else if (code == WOULD_CHANGE || (options.mode() == CliOptions.Mode.WRITE && !result.isUnchanged())) {
-            changed.incrementAndGet();
-        }
     }
 
     private int finishOne(String name, String source, ExpandResult result, boolean writeToDisk) {
@@ -235,21 +218,6 @@ final class CliRunner {
             .keep(options.keep())
             .expandStaticImports(options.expandStaticImports())
             .build();
-    }
-
-    private List<Path> sourceRootsFor(List<Path> files) {
-        Set<Path> roots = new LinkedHashSet<>();
-        for (Path path : options.sourcePath()) {
-            if (Files.exists(path)) {
-                roots.add(path);
-            }
-        }
-        for (Path path : options.paths()) {
-            if (Files.isDirectory(path)) {
-                roots.add(path);
-            }
-        }
-        return List.copyOf(roots);
     }
 
     private List<Path> discover() throws IOException {

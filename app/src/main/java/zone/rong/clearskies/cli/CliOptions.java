@@ -281,7 +281,7 @@ public record CliOptions(
                       --stdin-name NAME name used for diagnostics when reading standard input
 
                 OTHER
-                  -j, --jobs N          files to expand in parallel (default: available processors)
+                  -j, --jobs N          threads to use (default: available processors)
                   -v, --verbose         report every file and every diagnostic
 
                 EXIT CODES

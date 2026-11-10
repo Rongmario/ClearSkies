@@ -5,6 +5,8 @@
 
 package zone.rong.clearskies.core;
 
+import java.util.List;
+
 /**
  * The physical source line occupied by one import declaration: indent, trailing comment, and the
  * terminator that originally followed it.
@@ -103,37 +105,22 @@ final class LineSpan {
      * Explicit imports that occupy this line's slot. Empty {@code fqns} means delete the line.
      * Trailing comment, if any, rides on the first inserted line.
      */
-    String replacement(Iterable<String> fqns, boolean staticImport) {
-        StringBuilder text = new StringBuilder();
-        boolean first = true;
-        int count = 0;
-        for (String ignored : fqns) {
-            count++;
-        }
-        if (count == 0) {
+    String replacement(List<String> fqns, boolean staticImport) {
+        if (fqns.isEmpty()) {
             return "";
         }
         String breakAfter = newline.isEmpty() ? "\n" : newline;
-        int written = 0;
-        for (String fqn : fqns) {
-            text.append(indent).append("import ");
-            if (staticImport) {
-                text.append("static ");
-            }
-            text.append(fqn).append(';');
-            if (first) {
-                text.append(trailingComment);
-                first = false;
-            }
-            written++;
-            boolean last = written == count;
-            if (!last) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < fqns.size(); i++) {
+            if (i > 0) {
                 text.append(breakAfter);
-            } else if (!newline.isEmpty()) {
-                text.append(newline);
+            }
+            text.append(indent).append(staticImport ? "import static " : "import ").append(fqns.get(i)).append(';');
+            if (i == 0) {
+                text.append(trailingComment);
             }
         }
-        return text.toString();
+        return text.append(newline).toString();
     }
 
 }

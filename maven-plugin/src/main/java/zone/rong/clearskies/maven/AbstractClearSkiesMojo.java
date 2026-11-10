@@ -93,16 +93,49 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
         }
         Charset charset = MavenCompilerSettings.encoding(encoding, project);
         LanguageLevel level = MavenCompilerSettings.languageLevel(languageLevel, project);
-        List<String> wouldChange = new ArrayList<>();
-        List<String> failures = new ArrayList<>();
-        int[] expanded = { 0 };
-        int seen = 0;
-
+        List<Batch> batches = new ArrayList<>();
         if (processMain()) {
-            seen += process(mainFiles(), mainClasspath(), charset, level, wouldChange, failures, expanded);
+            batches.add(batch(mainFiles(), mainClasspath(), charset, level));
         }
         if (processTests()) {
-            seen += process(testFiles(), testClasspath(), charset, level, wouldChange, failures, expanded);
+            batches.add(batch(testFiles(), testClasspath(), charset, level));
+        }
+        List<List<ExpandResult>> results = batches.parallelStream().map(batch -> batch.expander.expandAll(batch.requests)).toList();
+
+        List<String> wouldChange = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        int expanded = 0;
+        int seen = 0;
+        for (int b = 0; b < batches.size(); b++) {
+            List<Path> files = batches.get(b).files;
+            seen += files.size();
+            for (int i = 0; i < files.size(); i++) {
+                Path file = files.get(i);
+                ExpandResult result = results.get(b).get(i);
+                boolean failed = result.outcome() == ExpandResult.Outcome.FAILED;
+                for (Diagnostic diagnostic : result.diagnostics()) {
+                    if (failed) {
+                        failures.add(diagnostic.format(file.toString()));
+                    } else if (diagnostic.severity() == Diagnostic.Severity.INFO) {
+                        getLog().debug(diagnostic.format(file.toString()));
+                    } else {
+                        getLog().warn(diagnostic.format(file.toString()));
+                    }
+                }
+                if (failed) {
+                    if (result.diagnostics().isEmpty()) {
+                        failures.add(file + ": expansion abandoned");
+                    }
+                } else if (result.outcome() != ExpandResult.Outcome.UNCHANGED) {
+                    if (checkOnly()) {
+                        wouldChange.add(file.toString());
+                    } else if (!result.isUnchanged()) {
+                        write(file, result.text(), charset);
+                        expanded++;
+                        getLog().info("Expanded " + file);
+                    }
+                }
+            }
         }
 
         if (seen == 0) {
@@ -116,7 +149,7 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
                 "ClearSkies found " + wouldChange.size() + " file(s) with expandable star imports or incomplete attribution. Run clearskies:apply.\n" + String.join("\n", wouldChange)
             );
         }
-        getLog().info("ClearSkies checked " + seen + " file(s), expanded " + expanded[0]);
+        getLog().info("ClearSkies checked " + seen + " file(s), expanded " + expanded);
     }
 
     static boolean processMainSources(String phase) {
@@ -139,18 +172,9 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
         return mojoExecution == null ? null : mojoExecution.getLifecyclePhase();
     }
 
-    private int process(
-        List<Path> files,
-        ExpandClasspath classpath,
-        Charset charset,
-        LanguageLevel level,
-        List<String> wouldChange,
-        List<String> failures,
-        int[] expanded
-    ) throws MojoExecutionException {
-        if (files.isEmpty()) {
-            return 0;
-        }
+    private record Batch(StarExpander expander, List<Path> files, List<ExpandRequest> requests) { }
+
+    private Batch batch(List<Path> files, ExpandClasspath classpath, Charset charset, LanguageLevel level) throws MojoExecutionException {
         StarExpander expander = ClearSkies.newExpander()
             .classpath(classpath)
             .languageLevel(level)
@@ -158,52 +182,15 @@ abstract class AbstractClearSkiesMojo extends AbstractMojo {
             .keep(keep)
             .expandStaticImports(expandStaticImports)
             .build();
+        List<ExpandRequest> requests = new ArrayList<>(files.size());
         for (Path file : files) {
-            String source;
             try {
-                source = Files.readString(file, charset);
+                requests.add(ExpandRequest.of(Files.readString(file, charset)).withName(file.toString()));
             } catch (IOException e) {
                 throw new MojoExecutionException("Cannot read " + file, e);
             }
-            ExpandResult result = expander.expand(ExpandRequest.of(source).withName(file.toString()));
-            for (Diagnostic diagnostic : result.diagnostics()) {
-                if (result.outcome() == ExpandResult.Outcome.FAILED) {
-                    failures.add(diagnostic.format(file.toString()));
-                } else if (diagnostic.severity() == Diagnostic.Severity.INFO) {
-                    getLog().debug(diagnostic.format(file.toString()));
-                } else {
-                    getLog().warn(diagnostic.format(file.toString()));
-                }
-            }
-            switch (result.outcome()) {
-                case FAILED -> {
-                    if (result.diagnostics().isEmpty()) {
-                        failures.add(file + ": expansion abandoned");
-                    }
-                }
-                case INCOMPLETE -> {
-                    if (checkOnly()) {
-                        wouldChange.add(file.toString());
-                    } else if (!result.isUnchanged()) {
-                        write(file, result.text(), charset);
-                        expanded[0]++;
-                        getLog().info("Expanded " + file);
-                    }
-                }
-                case EXPANDED -> {
-                    if (checkOnly()) {
-                        wouldChange.add(file.toString());
-                    } else {
-                        write(file, result.text(), charset);
-                        expanded[0]++;
-                        getLog().info("Expanded " + file);
-                    }
-                }
-                default -> {
-                }
-            }
         }
-        return files.size();
+        return new Batch(expander, files, requests);
     }
 
     private void write(Path file, String text, Charset charset) throws MojoExecutionException {

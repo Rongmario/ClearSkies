@@ -16,7 +16,7 @@ final class UnicodeEscapes {
     private UnicodeEscapes() { }
 
     static String translate(String source) {
-        int first = source.indexOf('\\');
+        int first = source.indexOf("\\u");
         if (first < 0) {
             return source;
         }

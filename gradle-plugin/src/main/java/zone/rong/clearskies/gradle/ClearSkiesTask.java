@@ -65,22 +65,36 @@ public abstract class ClearSkiesTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getMarkerFile();
 
+    private record Batch(Charset charset, StarExpander expander, List<File> files, List<ExpandRequest> requests) { }
+
     @TaskAction
     public void execute() {
+        List<Batch> batches = new ArrayList<>();
+        for (SourceSetWork target : getTargets().get()) {
+            Charset charset = Charset.forName(target.getEncoding().get());
+            Batch batch = new Batch(charset, expander(target, charset), new ArrayList<>(), new ArrayList<>());
+            for (File file : target.getSource().getFiles()) {
+                if (file.isFile() && file.getName().endsWith(".java")) {
+                    batch.files.add(file);
+                    batch.requests.add(request(file, charset));
+                }
+            }
+            batches.add(batch);
+        }
+        // Gradle state is read above on the task thread. Only the expansion itself runs in parallel.
+        List<List<ExpandResult>> results = batches.parallelStream().map(batch -> batch.expander.expandAll(batch.requests)).toList();
+
         List<String> wouldChange = new ArrayList<>();
         List<String> failures = new ArrayList<>();
         int expanded = 0;
-
-        for (SourceSetWork target : getTargets().get()) {
-            Charset charset = Charset.forName(target.getEncoding().get());
-            StarExpander expander = expander(target, charset);
-            for (File file : target.getSource().getFiles()) {
-                if (!file.isFile() || !file.getName().endsWith(".java")) {
-                    continue;
-                }
-                ExpandResult result = expand(expander, file, charset);
+        for (int b = 0; b < batches.size(); b++) {
+            Batch batch = batches.get(b);
+            for (int i = 0; i < batch.files.size(); i++) {
+                File file = batch.files.get(i);
+                ExpandResult result = results.get(b).get(i);
+                boolean failed = result.outcome() == ExpandResult.Outcome.FAILED;
                 for (Diagnostic diagnostic : result.diagnostics()) {
-                    if (result.outcome() == ExpandResult.Outcome.FAILED) {
+                    if (failed) {
                         failures.add(diagnostic.format(file.getPath()));
                     } else if (diagnostic.severity() == Diagnostic.Severity.INFO) {
                         getLogger().info("{}", diagnostic.format(file.getPath()));
@@ -88,31 +102,17 @@ public abstract class ClearSkiesTask extends DefaultTask {
                         getLogger().warn("{}", diagnostic.format(file.getPath()));
                     }
                 }
-                switch (result.outcome()) {
-                    case FAILED -> {
-                        if (result.diagnostics().isEmpty()) {
-                            failures.add(file.getPath() + ": expansion abandoned");
-                        }
+                if (failed) {
+                    if (result.diagnostics().isEmpty()) {
+                        failures.add(file.getPath() + ": expansion abandoned");
                     }
-                    case INCOMPLETE -> {
-                        if (getCheckOnly().get()) {
-                            wouldChange.add(file.getPath());
-                        } else if (!result.isUnchanged()) {
-                            write(file.toPath(), result.text(), charset);
-                            expanded++;
-                            getLogger().lifecycle("expanded {}", file.getPath());
-                        }
-                    }
-                    case EXPANDED -> {
-                        if (getCheckOnly().get()) {
-                            wouldChange.add(file.getPath());
-                        } else {
-                            write(file.toPath(), result.text(), charset);
-                            expanded++;
-                            getLogger().lifecycle("expanded {}", file.getPath());
-                        }
-                    }
-                    default -> {
+                } else if (result.outcome() != ExpandResult.Outcome.UNCHANGED) {
+                    if (getCheckOnly().get()) {
+                        wouldChange.add(file.getPath());
+                    } else if (!result.isUnchanged()) {
+                        write(file.toPath(), result.text(), batch.charset);
+                        expanded++;
+                        getLogger().lifecycle("expanded {}", file.getPath());
                     }
                 }
             }
@@ -152,10 +152,9 @@ public abstract class ClearSkiesTask extends DefaultTask {
         }
     }
 
-    private static ExpandResult expand(StarExpander expander, File file, Charset charset) {
+    private static ExpandRequest request(File file, Charset charset) {
         try {
-            String source = Files.readString(file.toPath(), charset);
-            return expander.expand(ExpandRequest.of(source).withName(file.getPath()));
+            return ExpandRequest.of(Files.readString(file.toPath(), charset)).withName(file.getPath());
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot read " + file, e);
         }

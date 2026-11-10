@@ -94,6 +94,7 @@ TYPE public abstract interface zone.rong.clearskies.api.StarExpander
   METHOD public abstract zone.rong.clearskies.api.ExpandResult zone.rong.clearskies.api.StarExpander.expand(zone.rong.clearskies.api.ExpandRequest)
   METHOD public abstract zone.rong.clearskies.api.LanguageLevel zone.rong.clearskies.api.StarExpander.languageLevel()
   METHOD public default java.lang.String zone.rong.clearskies.api.StarExpander.expand(java.lang.String)
+  METHOD public default java.util.List<zone.rong.clearskies.api.ExpandResult> zone.rong.clearskies.api.StarExpander.expandAll(java.util.List<zone.rong.clearskies.api.ExpandRequest>)
 TYPE public abstract interface zone.rong.clearskies.api.StarExpanderBuilder
   METHOD public abstract zone.rong.clearskies.api.StarExpander zone.rong.clearskies.api.StarExpanderBuilder.build()
   METHOD public abstract zone.rong.clearskies.api.StarExpanderBuilder zone.rong.clearskies.api.StarExpanderBuilder.classpath(zone.rong.clearskies.api.ExpandClasspath)

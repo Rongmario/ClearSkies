@@ -40,6 +40,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -77,7 +78,7 @@ final class DefaultStarExpander implements StarExpander {
     private final Object pathLock = new Object();
     private List<java.nio.file.Path> resolvedEntries;
     private List<java.nio.file.Path> resolvedRoots;
-    private List<String> pathErrors;
+    private List<Diagnostic> pathErrors;
 
     DefaultStarExpander(ExpandClasspath classpath, LanguageLevel languageLevel, Charset encoding, Set<String> keep, boolean expandStaticImports) {
         this.classpath = classpath;
@@ -99,61 +100,96 @@ final class DefaultStarExpander implements StarExpander {
 
     @Override
     public ExpandResult expand(ExpandRequest request) {
-        String source = request.source();
-        if (ImportRegion.skip(source, request.name())) {
-            return ExpandResult.unchanged(source);
+        return expandAll(List.of(request)).get(0);
+    }
+
+    @Override
+    public List<ExpandResult> expandAll(List<ExpandRequest> requests) {
+        ExpandResult[] results = new ExpandResult[requests.size()];
+        List<SourceFileObject> files = new ArrayList<>();
+        for (int i = 0; i < results.length; i++) {
+            ExpandRequest request = requests.get(i);
+            if (ImportRegion.skip(request.source(), request.name())) {
+                results[i] = ExpandResult.unchanged(request.source());
+            } else {
+                files.add(new SourceFileObject(i, request));
+            }
+        }
+        if (files.isEmpty()) {
+            return Arrays.asList(results);
         }
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        if (compiler == null) {
-            return ExpandResult.failed(
-                source,
-                List.of(Diagnostic.error("JDK compiler is required (javax.tools.JavaCompiler is unavailable). " + "Run ClearSkies on a JDK, not a JRE."))
-            );
-        }
-        List<String> resolvedErrors = ensurePaths();
-        if (!resolvedErrors.isEmpty()) {
-            List<Diagnostic> diagnostics = new ArrayList<>(resolvedErrors.size());
-            for (String error : resolvedErrors) {
-                diagnostics.add(Diagnostic.error(error));
+        List<Diagnostic> setupErrors = compiler == null
+            ? List.of(Diagnostic.error("JDK compiler is required (javax.tools.JavaCompiler is unavailable). Run ClearSkies on a JDK, not a JRE."))
+            : ensurePaths();
+        if (!setupErrors.isEmpty()) {
+            for (SourceFileObject file : files) {
+                results[file.index] = ExpandResult.failed(file.source, setupErrors);
             }
-            return ExpandResult.failed(source, diagnostics);
+        } else {
+            if (files.size() > 1 && attribute(compiler, files, results).isEmpty()) {
+                files.removeIf(file -> results[file.index] != null);
+            }
+            // What is left has a result that depends on the sources the file reaches, which only attributing it alone shows.
+            files.parallelStream().forEach(file -> {
+                List<Diagnostic> fatal = attribute(compiler, List.of(file), results);
+                if (!fatal.isEmpty()) {
+                    results[file.index] = ExpandResult.failed(file.source, fatal);
+                }
+            });
         }
+        return Arrays.asList(results);
+    }
+
+    /**
+     * Attributes the files in one javac task, so sources they share are attributed once. Returns the
+     * errors that stopped the task. An empty list means every file has its result, except those of a
+     * batch that have to be attributed alone.
+     */
+    private List<Diagnostic> attribute(JavaCompiler compiler, List<SourceFileObject> files, ExpandResult[] results) {
         DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(collector, null, encoding)) {
             fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, resolvedEntries);
             fileManager.setLocationFromPaths(StandardLocation.SOURCE_PATH, resolvedRoots);
-            JavaFileObject file = new SourceFileObject(request);
-            JavacTask task = (JavacTask) compiler.getTask(null, fileManager, collector, compilerOptions(), null, List.of(file));
-            Iterable<? extends CompilationUnitTree> units = task.parse();
+            JavacTask task = (JavacTask) compiler.getTask(null, fileManager, collector, compilerOptions(), null, files);
+            List<CompilationUnitTree> units = new ArrayList<>(files.size());
+            task.parse().forEach(units::add);
             List<Diagnostic> fatal = fatalDiagnostics(collector);
             if (!fatal.isEmpty()) {
-                return ExpandResult.failed(source, fatal);
+                return fatal;
             }
-            CompilationUnitTree unit = first(units);
-            if (unit == null) {
-                return ExpandResult.failed(source, List.of(Diagnostic.error("failed to parse " + request.name())));
+            if (units.size() != files.size()) {
+                return List.of(Diagnostic.error("failed to parse " + files.get(0).name));
             }
             task.analyze();
             fatal = fatalDiagnostics(collector);
             if (!fatal.isEmpty()) {
-                return ExpandResult.failed(source, fatal);
+                return fatal;
             }
-            return expandUnit(source, request.name(), unit, task, collector);
-        } catch (IOException e) {
-            return ExpandResult.failed(source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
-        } catch (RuntimeException e) {
-            return ExpandResult.failed(source, List.of(Diagnostic.error("cannot attribute " + request.name() + ": " + e.getMessage())));
+            // javac stops reporting at 100 errors. A batch at that limit can hide a fatal error that a file alone would see.
+            if (files.size() > 1 && collector.getDiagnostics().stream().filter(d -> d.getKind() == javax.tools.Diagnostic.Kind.ERROR).count() >= 100) {
+                return List.of(Diagnostic.error("too many errors to attribute the files together"));
+            }
+            boolean unresolved = hasUnresolvedSymbols(collector);
+            // javac parses the files in the order given, so units and files line up.
+            for (int i = 0; i < units.size(); i++) {
+                SourceFileObject file = files.get(i);
+                results[file.index] = expandUnit(file, units.get(i), task, collector, unresolved, files.size() > 1);
+            }
+            return List.of();
+        } catch (IOException | RuntimeException e) {
+            return List.of(Diagnostic.error("cannot attribute " + files.get(0).name + ": " + e.getMessage()));
         }
     }
 
-    private List<String> ensurePaths() {
+    private List<Diagnostic> ensurePaths() {
         synchronized (pathLock) {
             if (pathErrors == null) {
                 ClasspathEntries.Resolution entries = ClasspathEntries.classpath(classpath.entries());
                 ClasspathEntries.Resolution roots = ClasspathEntries.sourceRoots(classpath.sourceRoots());
-                List<String> errors = new ArrayList<>();
-                errors.addAll(entries.errors());
-                errors.addAll(roots.errors());
+                List<Diagnostic> errors = new ArrayList<>();
+                entries.errors().forEach(error -> errors.add(Diagnostic.error(error)));
+                roots.errors().forEach(error -> errors.add(Diagnostic.error(error)));
                 this.resolvedEntries = entries.paths();
                 this.resolvedRoots = roots.paths();
                 this.pathErrors = List.copyOf(errors);
@@ -162,7 +198,15 @@ final class DefaultStarExpander implements StarExpander {
         }
     }
 
-    private ExpandResult expandUnit(String source, String name, CompilationUnitTree unit, JavacTask task, DiagnosticCollector<JavaFileObject> collector) {
+    private ExpandResult expandUnit(
+        SourceFileObject file,
+        CompilationUnitTree unit,
+        JavacTask task,
+        DiagnosticCollector<JavaFileObject> collector,
+        boolean unresolved,
+        boolean batch
+    ) {
+        String source = file.source;
         Trees trees = Trees.instance(task);
         List<StarImport> stars = new ArrayList<>();
         Set<String> singleTypeSimpleNames = new HashSet<>();
@@ -209,16 +253,17 @@ final class DefaultStarExpander implements StarExpander {
         String packageName = qualifiedName(unit.getPackageName());
         UseScanner uses = new UseScanner(trees, DocTrees.instance(task));
         uses.scan(unit, null);
-        uses.unresolved.addAll(ambiguousNames(source, collector));
+        uses.unresolved.addAll(ambiguousNames(file, collector));
         LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned = new LinkedHashMap<>();
         for (StarImport star : stars) {
             assigned.put(star, new LinkedHashSet<>());
         }
 
-        assign(uses.used, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+        for (Element element : uses.used) {
+            recordUse(element, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
+        }
         assignUnresolved(uses.unresolved, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
 
-        boolean unresolved = hasUnresolvedSymbols(collector);
         StringBuilder out = new StringBuilder(source);
         boolean changed = false;
         boolean incomplete = !frozen.isEmpty();
@@ -236,6 +281,10 @@ final class DefaultStarExpander implements StarExpander {
             String next;
             if (fqns.isEmpty()) {
                 if (unresolved) {
+                    // Whether the star stays depends on unresolved symbols in the sources this file reaches, not in the whole batch.
+                    if (batch) {
+                        return null;
+                    }
                     diagnostics.add(
                         Diagnostic.warning("left unused-looking star import " + star.ownerName + ".* because the file has unresolved types", star.line, 1)
                     );
@@ -274,13 +323,6 @@ final class DefaultStarExpander implements StarExpander {
         return List.of("--release", Integer.toString(languageLevel.release()), "-proc:none", "-Xlint:none");
     }
 
-    private static CompilationUnitTree first(Iterable<? extends CompilationUnitTree> units) {
-        for (CompilationUnitTree unit : units) {
-            return unit;
-        }
-        return null;
-    }
-
     private static List<Diagnostic> fatalDiagnostics(DiagnosticCollector<JavaFileObject> collector) {
         List<Diagnostic> fatal = new ArrayList<>();
         for (javax.tools.Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
@@ -307,9 +349,13 @@ final class DefaultStarExpander implements StarExpander {
         return false;
     }
 
-    private static Set<String> ambiguousNames(String source, DiagnosticCollector<JavaFileObject> collector) {
+    private static Set<String> ambiguousNames(SourceFileObject file, DiagnosticCollector<JavaFileObject> collector) {
+        String source = file.source;
         Set<String> names = new LinkedHashSet<>();
         for (javax.tools.Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
+            if (diagnostic.getSource() != file) {
+                continue;
+            }
             if (diagnostic.getKind() != javax.tools.Diagnostic.Kind.ERROR || diagnostic.getCode() == null || !diagnostic.getCode().contains("ambiguous")) {
                 continue;
             }
@@ -363,21 +409,6 @@ final class DefaultStarExpander implements StarExpander {
             return pkg;
         }
         return task.getElements().getTypeElement(name);
-    }
-
-    private static void assign(
-        Set<Element> used,
-        String packageName,
-        Set<String> singleTypeSimpleNames,
-        Set<String> singleStaticSimpleNames,
-        List<StarImport> stars,
-        LinkedHashMap<StarImport, LinkedHashSet<Element>> assigned,
-        Set<StarImport> frozen,
-        List<Diagnostic> diagnostics
-    ) {
-        for (Element element : used) {
-            recordUse(element, packageName, singleTypeSimpleNames, singleStaticSimpleNames, stars, assigned, frozen, diagnostics);
-        }
     }
 
     private static void assignUnresolved(
@@ -530,6 +561,7 @@ final class DefaultStarExpander implements StarExpander {
         final int line;
         final boolean staticImport;
         final Elements elements;
+        private Set<Element> staticMembers;
 
         StarImport(LineSpan span, Element owner, String ownerName, int line, boolean staticImport, Elements elements) {
             this.span = span;
@@ -552,15 +584,7 @@ final class DefaultStarExpander implements StarExpander {
 
         boolean provides(Element element) {
             if (staticImport) {
-                if (!(owner instanceof TypeElement outer) || !isStaticImportable(element)) {
-                    return false;
-                }
-                for (Element member : elements.getAllMembers(outer)) {
-                    if (member.equals(element)) {
-                        return true;
-                    }
-                }
-                return false;
+                return isStaticImportable(element) && staticMembers().contains(element);
             }
             if (!(element instanceof TypeElement type)) {
                 return false;
@@ -580,12 +604,16 @@ final class DefaultStarExpander implements StarExpander {
             return !rest.isEmpty() && rest.indexOf('.') < 0;
         }
 
+        private Set<Element> staticMembers() {
+            if (staticMembers == null) {
+                staticMembers = owner instanceof TypeElement outer ? new LinkedHashSet<>(elements.getAllMembers(outer)) : Set.of();
+            }
+            return staticMembers;
+        }
+
         Element memberNamed(String simple) {
             if (staticImport) {
-                if (!(owner instanceof TypeElement outer)) {
-                    return null;
-                }
-                for (Element member : elements.getAllMembers(outer)) {
+                for (Element member : staticMembers()) {
                     if (member.getSimpleName().contentEquals(simple) && isStaticImportable(member)) {
                         return member;
                     }
@@ -771,11 +799,15 @@ final class DefaultStarExpander implements StarExpander {
 
     private static final class SourceFileObject extends SimpleJavaFileObject {
 
-        private final String source;
+        final int index;
+        final String source;
+        final String name;
 
-        SourceFileObject(ExpandRequest request) {
+        SourceFileObject(int index, ExpandRequest request) {
             super(uriFor(request.name()), JavaFileObject.Kind.SOURCE);
+            this.index = index;
             this.source = request.source();
+            this.name = request.name();
         }
 
         @Override

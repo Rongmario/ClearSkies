@@ -111,9 +111,12 @@ StarExpander expander = ClearSkies.newExpander()
         .build();
 
 ExpandResult result = expander.expand(ExpandRequest.of(source).withName("Foo.java"));
+List<ExpandResult> results = expander.expandAll(requests);
 ```
 
 An expander is immutable and thread-safe; one instance can serve a whole source set.
+
+Use `expandAll` for more than one file. It attributes the files together in one javac run, so sources they share are attributed once. Files are attributed one by one, in parallel, only when the sources have compile errors.
 
 The public API is the `zone.rong.clearskies.api` package plus `zone.rong.clearskies.core.ClearSkies`. Every other class in `zone.rong.clearskies.core` is internal and may change in any release.
 
