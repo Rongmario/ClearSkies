@@ -58,7 +58,9 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.util.Elements;
 import javax.tools.DiagnosticCollector;
+import javax.tools.ForwardingJavaFileManager;
 import javax.tools.JavaCompiler;
+import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
@@ -151,7 +153,16 @@ final class DefaultStarExpander implements StarExpander {
         try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(collector, null, encoding)) {
             fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, resolvedEntries);
             fileManager.setLocationFromPaths(StandardLocation.SOURCE_PATH, resolvedRoots);
-            JavacTask task = (JavacTask) compiler.getTask(null, fileManager, collector, compilerOptions(), null, files);
+
+            // A module-info.java on the source path puts javac in single-module mode, which needs every file on disk
+            // and fails on in-memory sources. Hiding it attributes the files in the unnamed module instead.
+            JavaFileManager manager = new ForwardingJavaFileManager<>(fileManager) {
+                @Override
+                public JavaFileObject getJavaFileForInput(Location location, String className, JavaFileObject.Kind kind) throws IOException {
+                    return className.equals("module-info") ? null : super.getJavaFileForInput(location, className, kind);
+                }
+            };
+            JavacTask task = (JavacTask) compiler.getTask(null, manager, collector, compilerOptions(), null, files);
             List<CompilationUnitTree> units = new ArrayList<>(files.size());
             task.parse().forEach(units::add);
             List<Diagnostic> fatal = fatalDiagnostics(collector);

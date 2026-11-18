@@ -416,6 +416,30 @@ class StarExpanderTest {
     }
 
     @Test
+    void expandsBesideAModuleInfoOnTheSourcePath(@TempDir Path temp) throws Exception {
+        Path root = temp.resolve("src");
+        Files.createDirectories(root.resolve("foo"));
+        Files.writeString(root.resolve("module-info.java"), "module foo { exports foo; }\n");
+        Files.writeString(root.resolve("foo/Bar.java"), "package foo;\npublic class Bar {}\n");
+        StarExpander expander = ClearSkies.newExpander().classpath(ExpandClasspath.platformOnly().withSourceRoots(List.of(root))).build();
+        String source = """
+                package sample;
+
+                import foo.*;
+
+                class Sample { Bar x; }
+                """;
+        String expected = """
+                package sample;
+
+                import foo.Bar;
+
+                class Sample { Bar x; }
+                """;
+        assertThat(expander.expand(ExpandRequest.of(source).withName("Sample.java")).text()).isEqualTo(expected);
+    }
+
+    @Test
     void samePackageStarIsDeleted(@TempDir Path temp) throws Exception {
         Path root = temp.resolve("src");
         Files.createDirectories(root.resolve("sample"));
